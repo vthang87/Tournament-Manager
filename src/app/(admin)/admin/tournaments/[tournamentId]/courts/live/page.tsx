@@ -1,0 +1,120 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { DashboardService, TournamentService } from "@/application/services";
+import { getDb } from "@/db/client";
+import { LiveRefresh } from "@/features/live-board/live-refresh";
+import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import { matchStatusKey } from "@/i18n/status-labels";
+
+export const dynamic = "force-dynamic";
+
+export default async function CourtLivePage({
+  params,
+}: {
+  params: Promise<{ tournamentId: string }>;
+}) {
+  await requireRoleOrRedirect([
+    "ADMIN",
+    "OPERATOR",
+    "SCOREKEEPER",
+    "VIEWER",
+  ]);
+  const { tournamentId } = await params;
+  const db = getDb();
+  const t = await getTranslations("courts");
+  const tc = await getTranslations("common");
+  const tStatus = await getTranslations("status");
+
+  let tournament;
+  try {
+    tournament = await new TournamentService(db).getById(tournamentId);
+  } catch {
+    notFound();
+  }
+
+  const courts = await new DashboardService(db).courtLiveBoard(tournamentId);
+
+  return (
+    <div className="space-y-6">
+      <LiveRefresh intervalMs={12_000} />
+      <div>
+        <Link
+          href={`/admin/tournaments/${tournamentId}/courts`}
+          className="text-sm text-slate-600 hover:text-slate-900"
+        >
+          ← {t("title")}
+        </Link>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight">
+          {t("courtDashboard")}
+        </h1>
+        <p className="mt-1 text-sm text-slate-600">
+          {t("refreshesEvery", { name: tournament.name })}
+        </p>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">{tc("court")}</TableHead>
+              <TableHead scope="col">{t("nowPlaying")}</TableHead>
+              <TableHead scope="col">{t("next")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {courts.map((court) => (
+              <TableRow key={court.courtId}>
+                <TableCell className="font-medium">
+                  {court.courtName}{" "}
+                  <span className="text-slate-500">({court.courtCode})</span>
+                </TableCell>
+                <TableCell>
+                  {court.nowPlaying ? (
+                    <div>
+                      <p>
+                        {court.nowPlaying.entryAName ?? tc("tbd")} {tc("vs")}{" "}
+                        {court.nowPlaying.entryBName ?? tc("tbd")}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {court.nowPlaying.eventName} ·{" "}
+                        {tStatus(matchStatusKey(court.nowPlaying.status))}
+                      </p>
+                    </div>
+                  ) : (
+                    <span className="text-slate-500">{t("idle")}</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {court.next ? (
+                    <div>
+                      <p>
+                        {court.next.entryAName ?? tc("tbd")} {tc("vs")}{" "}
+                        {court.next.entryBName ?? tc("tbd")}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {court.next.scheduledAt
+                          ? new Date(court.next.scheduledAt).toLocaleString()
+                          : tStatus(matchStatusKey(court.next.status))}
+                      </p>
+                    </div>
+                  ) : (
+                    <span className="text-slate-500">{tc("dash")}</span>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}

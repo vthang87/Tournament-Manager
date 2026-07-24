@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.DS_Store
+.env
+.env.*
+!.env.example
+data
+coverage
+*.db
+*.db-*
+Dockerfile
+compose.yaml
+README.md
+docs
+e2e
