@@ -17,6 +17,7 @@ const specialResolutionPolicySchema = z.object({
   setsLost: z.number().int().nonnegative(),
   pointsWon: z.number().int().nonnegative(),
   pointsLost: z.number().int().nonnegative(),
+  includePlayedSets: z.boolean().optional(),
 });
 
 export const standingsSpecialPolicySchema = z.object({

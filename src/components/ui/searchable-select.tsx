@@ -54,7 +54,8 @@ export function SearchableSelect({
     return options.filter(
       (o) =>
         normalizeSearch(o.label).includes(q) ||
-        (o.description != null && normalizeSearch(o.description).includes(q)),
+        (o.description != null && normalizeSearch(o.description).includes(q)) ||
+        (o.hint != null && normalizeSearch(o.hint).includes(q)),
     );
   }, [options, query]);
 
@@ -145,13 +146,20 @@ export function SearchableSelect({
           }
         }}
         className={cn(
-          "flex h-10 w-full items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-sm text-slate-900 shadow-sm",
+          "flex min-h-10 w-full items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-sm text-slate-900 shadow-sm",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400",
           "disabled:cursor-not-allowed disabled:opacity-50",
         )}
       >
-        <span className={cn("truncate", !selected && "text-slate-400")}>
-          {selected ? selected.label : placeholder}
+        <span className={cn("min-w-0 flex-1", !selected && "text-slate-400")}>
+          <span className="block truncate">
+            {selected ? selected.label : placeholder}
+          </span>
+          {selected?.description ? (
+            <span className="mt-0.5 block truncate text-xs font-normal text-slate-500">
+              {selected.description}
+            </span>
+          ) : null}
         </span>
         <span className="flex shrink-0 items-center gap-1">
           {value ? (

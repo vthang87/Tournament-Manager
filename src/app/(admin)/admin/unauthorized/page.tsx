@@ -7,13 +7,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { pageTitle } from "@/lib/page-title";
 
 export async function generateMetadata() {
   const t = await getTranslations("auth");
-  const tMeta = await getTranslations("meta");
-  return {
-    title: `${t("unauthorized")} · ${tMeta("appName")}`,
-  };
+  return pageTitle(t("unauthorized"));
 }
 
 export default async function UnauthorizedPage() {

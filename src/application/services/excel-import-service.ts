@@ -184,7 +184,7 @@ export class ExcelImportService {
     const createdPlayerIds: string[] = [];
     const createdClubIds: string[] = [];
 
-    this.db.transaction((tx) => {
+    this.db.transaction(async (tx) => {
       const now = nowIso();
       const clubIdByName = new Map(
         [...clubByName.entries()].map(([k, v]) => [k, v.id]),
@@ -203,7 +203,7 @@ export class ExcelImportService {
           return existingId;
         }
         const clubId = createId();
-        tx.insert(clubs)
+        await tx.insert(clubs)
           .values({
             id: clubId,
             name: clubName,
@@ -212,10 +212,10 @@ export class ExcelImportService {
             createdAt: now,
             updatedAt: now,
           })
-          .run();
+          
         createdClubIds.push(clubId);
         clubIdByName.set(key, clubId);
-        writeAuditLog(tx, {
+        await writeAuditLog(tx, {
           userId: actor.userId,
           action: "club.create",
           entityType: "club",
@@ -236,7 +236,7 @@ export class ExcelImportService {
           return existingId;
         }
         const playerId = createId();
-        tx.insert(players)
+        await tx.insert(players)
           .values({
             id: playerId,
             name: playerName,
@@ -251,10 +251,10 @@ export class ExcelImportService {
             createdAt: now,
             updatedAt: now,
           })
-          .run();
+          
         createdPlayerIds.push(playerId);
         playerIdByName.set(key, playerId);
-        writeAuditLog(tx, {
+        await writeAuditLog(tx, {
           userId: actor.userId,
           action: "player.create",
           entityType: "player",
@@ -284,15 +284,15 @@ export class ExcelImportService {
           createdAt: now,
           updatedAt: now,
         };
-        tx.insert(entries).values(entryRow).run();
+        await tx.insert(entries).values(entryRow)
         for (const member of memberIds) {
-          tx.insert(entryMembers)
+          await tx.insert(entryMembers)
             .values({
               entryId,
               playerId: member.playerId,
               position: member.position,
             })
-            .run();
+            
         }
 
         const created: EntryWithMembers = {
@@ -304,7 +304,7 @@ export class ExcelImportService {
           })),
         };
         createdEntryIds.push(entryId);
-        writeAuditLog(tx, {
+        await writeAuditLog(tx, {
           userId: actor.userId,
           action: "entry.create",
           entityType: "entry",

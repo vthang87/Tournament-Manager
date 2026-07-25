@@ -15,14 +15,13 @@ services:
     volumes:
       - .:/app
       - tm_node_modules:/app/node_modules
-      - tm_data:/app/data
     ports:
       - "${APP_PORT:-3001}:3000"
     environment:
       NODE_ENV: development
       HOSTNAME: 0.0.0.0
       PORT: "3000"
-      DATABASE_URL: ${DATABASE_URL:-/app/data/tournament-manager.db}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://tournament:tournament@192.168.0.17:5432/tournament_manager}
       APP_URL: ${APP_URL:-http://localhost:3001}
       SESSION_SECRET: ${SESSION_SECRET:-dev-only-change-me-to-a-long-random-string}
       WATCHPACK_POLLING: "true"
@@ -33,7 +32,5 @@ networks:
     driver: bridge
 
 volumes:
-  tm_data:
-    driver: local
   tm_node_modules:
     driver: local

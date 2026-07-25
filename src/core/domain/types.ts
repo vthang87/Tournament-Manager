@@ -73,6 +73,8 @@ export type Court = {
   name: string;
   code: string;
   active: boolean;
+  /** Whether a referee PIN is configured (hash never exposed). */
+  hasAccessPin: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -315,8 +317,11 @@ export type UpdateEntryInput = {
 };
 
 export type ActorContext = {
-  userId: string;
+  /** Null for court-PIN kiosk sessions (audit allows null user). */
+  userId: string | null;
   role: UserRole;
+  /** Optional audit metadata (e.g. court PIN kiosk `{ via, courtId }`). */
+  auditMetadata?: Record<string, unknown>;
 };
 
 export type MatchStatus =
@@ -362,6 +367,8 @@ export type MatchRecord = {
   courtId: string | null;
   scheduledAt: string | null;
   estimatedDurationMinutes: number | null;
+  /** Countdown target while teams are called to court (pre-start); null when not called. */
+  warmupUntil: string | null;
   startedAt: string | null;
   completedAt: string | null;
   nextMatchId: string | null;

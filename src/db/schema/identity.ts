@@ -1,12 +1,12 @@
 import {
+  boolean,
   index,
-  integer,
-  sqliteTable,
+  pgTable,
   text,
   uniqueIndex,
-} from "drizzle-orm/sqlite-core";
+} from "drizzle-orm/pg-core";
 
-export const users = sqliteTable(
+export const users = pgTable(
   "users",
   {
     id: text("id").primaryKey(),
@@ -18,14 +18,14 @@ export const users = sqliteTable(
     })
       .notNull()
       .default("VIEWER"),
-    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    active: boolean("active").notNull().default(true),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
   (table) => [uniqueIndex("users_username_uidx").on(table.username)],
 );
 
-export const auditLogs = sqliteTable(
+export const auditLogs = pgTable(
   "audit_logs",
   {
     id: text("id").primaryKey(),

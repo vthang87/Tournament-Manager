@@ -11,30 +11,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { localizeStandingCriterion } from "@/features/standings/criterion-labels";
 import { cn } from "@/lib/utils";
-
-const CRITERION_KEYS: Record<
-  string,
-  | "matchWins"
-  | "headToHead"
-  | "setDifference"
-  | "pointDifference"
-  | "pointsWon"
-  | "setsWon"
-  | "matchesPlayed"
-  | "entryIdFallback"
-  | "drawRequired"
-> = {
-  MATCH_WINS: "matchWins",
-  HEAD_TO_HEAD: "headToHead",
-  SET_DIFFERENCE: "setDifference",
-  POINT_DIFFERENCE: "pointDifference",
-  POINTS_WON: "pointsWon",
-  SETS_WON: "setsWon",
-  MATCHES_PLAYED: "matchesPlayed",
-  ENTRY_ID: "entryIdFallback",
-  DRAW_REQUIRED: "drawRequired",
-};
 
 export function StandingsTable({
   rows,
@@ -50,10 +28,8 @@ export function StandingsTable({
 
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const criterionLabel = (criterion: string) => {
-    const key = CRITERION_KEYS[criterion];
-    return key ? t(key) : criterion;
-  };
+  const criterionLabel = (criterion: string) =>
+    localizeStandingCriterion(criterion, t);
 
   if (rows.length === 0) {
     return (

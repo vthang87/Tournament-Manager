@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   calculateStandings,
   defaultStandingRule,
+  DEFAULT_SPECIAL_POLICY,
   type StandingMatch,
 } from "@/core/tournament-engine/standings";
 
@@ -167,6 +168,7 @@ describe("calculateStandings", () => {
             setsLost: 0,
             pointsWon: 42,
             pointsLost: 0,
+            includePlayedSets: true,
           },
           retirement: {
             setsWon: 2,
@@ -184,8 +186,9 @@ describe("calculateStandings", () => {
           noShow: {
             setsWon: 2,
             setsLost: 0,
-            pointsWon: 0,
+            pointsWon: 42,
             pointsLost: 0,
+            includePlayedSets: true,
           },
         },
       },
@@ -195,6 +198,32 @@ describe("calculateStandings", () => {
     expect(rows[0]!.setsWon).toBe(2);
     expect(rows[0]!.pointsWon).toBe(42);
     expect(rows[1]!.setsLost).toBe(2);
+  });
+
+  it("uses scored walkover sets when present (pointsToWin–0)", () => {
+    const rows = calculateStandings({
+      entries: [{ id: "A" }, { id: "B" }],
+      matches: [
+        {
+          id: "wo",
+          entryAId: "A",
+          entryBId: "B",
+          winnerEntryId: "A",
+          resolution: "NO_SHOW",
+          sets: [
+            { scoreA: 21, scoreB: 0 },
+            { scoreA: 21, scoreB: 0 },
+          ],
+        },
+      ],
+      rule: defaultStandingRule({ specialPolicy: DEFAULT_SPECIAL_POLICY }),
+    });
+
+    expect(rows[0]!.entryId).toBe("A");
+    expect(rows[0]!.setsWon).toBe(2);
+    expect(rows[0]!.pointsWon).toBe(42);
+    expect(rows[0]!.pointDifference).toBe(42);
+    expect(rows[1]!.pointDifference).toBe(-42);
   });
 
   it("is independent of input order", () => {

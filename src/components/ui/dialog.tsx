@@ -38,7 +38,8 @@ export function Dialog({
     <dialog
       ref={ref}
       className={cn(
-        "w-[min(100%,28rem)] rounded-lg border border-slate-200 bg-white p-0 text-slate-900 shadow-lg backdrop:bg-slate-900/40",
+        // Tailwind Preflight resets dialog margin — restore centering for showModal().
+        "fixed inset-0 z-50 m-auto h-fit max-h-[min(90vh,40rem)] w-[min(100%-2rem,28rem)] overflow-y-auto rounded-lg border border-slate-200 bg-white p-0 text-slate-900 shadow-lg backdrop:bg-slate-900/40",
         className,
       )}
       onClose={() => onOpenChange(false)}

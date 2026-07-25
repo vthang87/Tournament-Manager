@@ -22,8 +22,11 @@ import { DomainError } from "@/core/tournament-engine/errors";
 import { createMatchRuleSnapshot } from "@/core/tournament-engine/match-rules/create-snapshot";
 import type { MatchRuleSnapshot } from "@/core/tournament-engine/match-rules/types";
 import { calculateMatchWinner } from "@/core/tournament-engine/scoring";
+import { calculateSetWinner } from "@/core/tournament-engine/scoring/calculate-set-winner";
+import { setsToWin as computeSetsToWin } from "@/core/tournament-engine/scoring/set-points";
 import type { AppDatabase } from "@/db/client";
 import { DrizzleMatchRepository } from "@/db/repositories/match-repository";
+import { DrizzleCourtRepository } from "@/db/repositories/court-repository";
 import { DrizzleTournamentEventRepository } from "@/db/repositories/tournament-event-repository";
 import { DrizzleTournamentRepository } from "@/db/repositories/tournament-repository";
 import { matchSets, matches } from "@/db/schema";
@@ -49,6 +52,22 @@ function parseRuleSnapshot(json: string): MatchRuleSnapshot {
       "INVALID_RULE_SNAPSHOT",
     );
   }
+}
+
+function mergeAuditMetadata(
+  actorMeta?: Record<string, unknown>,
+  optionsMeta?: unknown,
+): Record<string, unknown> | undefined {
+  const fromOptions =
+    optionsMeta &&
+    typeof optionsMeta === "object" &&
+    !Array.isArray(optionsMeta)
+      ? (optionsMeta as Record<string, unknown>)
+      : undefined;
+  if (!actorMeta && !fromOptions) {
+    return undefined;
+  }
+  return { ...(actorMeta ?? {}), ...(fromOptions ?? {}) };
 }
 
 function statusForResolution(resolution: MatchResolution): MatchStatus {
@@ -77,12 +96,14 @@ type FinishPayload = {
  */
 export class MatchOpsService {
   private readonly matchesRepo: DrizzleMatchRepository;
+  private readonly courts: DrizzleCourtRepository;
   private readonly events: DrizzleTournamentEventRepository;
   private readonly tournaments: DrizzleTournamentRepository;
   private bracketService: BracketService | null = null;
 
   constructor(private readonly db: AppDatabase) {
     this.matchesRepo = new DrizzleMatchRepository(db);
+    this.courts = new DrizzleCourtRepository(db);
     this.events = new DrizzleTournamentEventRepository(db);
     this.tournaments = new DrizzleTournamentRepository(db);
   }
@@ -165,6 +186,7 @@ export class MatchOpsService {
     actor: ActorContext,
     matchId: string,
     expectedUpdatedAt?: string,
+    options?: { courtId?: string | null },
   ): Promise<MatchWithSets> {
     assertCanPerform(actor.role, "score");
     const before = await this.getById(matchId);
@@ -173,13 +195,45 @@ export class MatchOpsService {
     assertMatchStartable(before.status);
     this.assertBothSidesPresent(before);
 
-    return this.db.transaction((tx) => {
+    const courtId =
+      options?.courtId !== undefined ? options.courtId : before.courtId;
+    if (!courtId) {
+      throw new ValidationError(
+        "Assign a court before starting the match",
+        "COURT_REQUIRED",
+      );
+    }
+    const court = await this.courts.findById(courtId);
+    if (!court || !court.active) {
+      throw new ValidationError("Court not found or inactive", "COURT_INVALID");
+    }
+    const event = await this.events.findById(before.eventId);
+    if (!event || court.tournamentId !== event.tournamentId) {
+      throw new ValidationError(
+        "Court does not belong to this tournament",
+        "COURT_INVALID",
+      );
+    }
+    const busy = await this.matchesRepo.findInProgressOnCourt(
+      courtId,
+      matchId,
+    );
+    if (busy) {
+      throw new ValidationError(
+        "Court already has a match in progress",
+        "COURT_BUSY",
+      );
+    }
+
+    return this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
       const startedAt = updatedAt;
       const changed = tx
         .update(matches)
         .set({
           status: "IN_PROGRESS",
+          courtId,
+          warmupUntil: null,
           startedAt,
           updatedAt,
         })
@@ -189,7 +243,7 @@ export class MatchOpsService {
             eq(matches.updatedAt, before.updatedAt),
           ),
         )
-        .run();
+        
       if ((changed.changes ?? 0) === 0) {
         throw new ConflictError(
           "Match was updated by another request; refresh and retry",
@@ -199,16 +253,223 @@ export class MatchOpsService {
       const after: MatchWithSets = {
         ...before,
         status: "IN_PROGRESS",
+        courtId,
+        warmupUntil: null,
         startedAt,
         updatedAt,
       };
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "match.start",
         entityType: "match",
         entityId: matchId,
         before,
         after,
+        metadata: actor.auditMetadata,
+      });
+      return after;
+    });
+  }
+
+  /**
+   * Call the teams to court: set a pre-start countdown so players can prepare.
+   * Does not start the match; the countdown is informational and cleared on start/cancel.
+   */
+  async callToCourt(
+    actor: ActorContext,
+    matchId: string,
+    minutes: number,
+    expectedUpdatedAt?: string,
+    options?: { courtId?: string },
+  ): Promise<MatchWithSets> {
+    assertCanPerform(actor.role, "score");
+    const before = await this.getById(matchId);
+    await this.assertTournamentWritable(before.eventId);
+    this.assertOptimisticConcurrency(before, expectedUpdatedAt);
+    assertMatchStartable(before.status);
+    this.assertBothSidesPresent(before);
+
+    const mins = Math.min(30, Math.max(1, Math.round(minutes)));
+    if (!Number.isFinite(mins)) {
+      throw new ValidationError(
+        "Countdown minutes must be a number",
+        "WARMUP_MINUTES_INVALID",
+      );
+    }
+
+    let courtId = before.courtId;
+    if (options?.courtId) {
+      // May reassign from another court — only allowed because match is not started
+      // (assertMatchStartable above).
+      const court = await this.courts.findById(options.courtId);
+      if (!court || !court.active) {
+        throw new ValidationError(
+          "Court not found or inactive",
+          "COURT_INVALID",
+        );
+      }
+      const event = await this.events.findById(before.eventId);
+      if (!event || court.tournamentId !== event.tournamentId) {
+        throw new ValidationError(
+          "Court does not belong to this tournament",
+          "COURT_INVALID",
+        );
+      }
+      courtId = options.courtId;
+    }
+
+    const warmupUntil = new Date(Date.now() + mins * 60_000).toISOString();
+
+    return this.db.transaction(async (tx) => {
+      const updatedAt = nowIso();
+      const changed = tx
+        .update(matches)
+        .set({ warmupUntil, courtId, updatedAt })
+        .where(
+          and(eq(matches.id, matchId), eq(matches.updatedAt, before.updatedAt)),
+        )
+        
+      if ((changed.changes ?? 0) === 0) {
+        throw new ConflictError(
+          "Match was updated by another request; refresh and retry",
+        );
+      }
+      const after: MatchWithSets = {
+        ...before,
+        warmupUntil,
+        courtId,
+        updatedAt,
+      };
+      await writeAuditLog(tx, {
+        userId: actor.userId,
+        action: "match.call_to_court",
+        entityType: "match",
+        entityId: matchId,
+        before,
+        after,
+        metadata: mergeAuditMetadata(actor.auditMetadata, {
+          minutes: mins,
+          warmupUntil,
+        }),
+      });
+      return after;
+    });
+  }
+
+  /** Clear a pending call-to-court countdown without starting the match. */
+  async clearWarmup(
+    actor: ActorContext,
+    matchId: string,
+    expectedUpdatedAt?: string,
+  ): Promise<MatchWithSets> {
+    assertCanPerform(actor.role, "score");
+    const before = await this.getById(matchId);
+    await this.assertTournamentWritable(before.eventId);
+    this.assertOptimisticConcurrency(before, expectedUpdatedAt);
+
+    return this.db.transaction(async (tx) => {
+      const updatedAt = nowIso();
+      const changed = tx
+        .update(matches)
+        .set({ warmupUntil: null, updatedAt })
+        .where(
+          and(eq(matches.id, matchId), eq(matches.updatedAt, before.updatedAt)),
+        )
+        
+      if ((changed.changes ?? 0) === 0) {
+        throw new ConflictError(
+          "Match was updated by another request; refresh and retry",
+        );
+      }
+      const after: MatchWithSets = { ...before, warmupUntil: null, updatedAt };
+      await writeAuditLog(tx, {
+        userId: actor.userId,
+        action: "match.clear_warmup",
+        entityType: "match",
+        entityId: matchId,
+        before,
+        after,
+        metadata: actor.auditMetadata,
+      });
+      return after;
+    });
+  }
+
+  /**
+   * Swap entry A / entry B before the match starts (court side assignment).
+   * Only allowed while the match is still PENDING or SCHEDULED.
+   * Optional courtId claims/reassigns the match to that court.
+   */
+  async swapSides(
+    actor: ActorContext,
+    matchId: string,
+    expectedUpdatedAt?: string,
+    options?: { courtId?: string },
+  ): Promise<MatchWithSets> {
+    assertCanPerform(actor.role, "score");
+    const before = await this.getById(matchId);
+    await this.assertTournamentWritable(before.eventId);
+    this.assertOptimisticConcurrency(before, expectedUpdatedAt);
+    assertMatchStartable(before.status);
+    this.assertBothSidesPresent(before);
+    if (before.warmupUntil) {
+      throw new DomainStateError(
+        "Cannot swap sides after teams have been called to court",
+        "WARMUP_ACTIVE",
+      );
+    }
+
+    const entryAId = before.entryBId;
+    const entryBId = before.entryAId;
+
+    let courtId = before.courtId;
+    if (options?.courtId) {
+      const court = await this.courts.findById(options.courtId);
+      if (!court || !court.active) {
+        throw new ValidationError(
+          "Court not found or inactive",
+          "COURT_INVALID",
+        );
+      }
+      const event = await this.events.findById(before.eventId);
+      if (!event || court.tournamentId !== event.tournamentId) {
+        throw new ValidationError(
+          "Court does not belong to this tournament",
+          "COURT_INVALID",
+        );
+      }
+      courtId = options.courtId;
+    }
+
+    return this.db.transaction(async (tx) => {
+      const updatedAt = nowIso();
+      const changed = tx
+        .update(matches)
+        .set({ entryAId, entryBId, courtId, updatedAt })
+        .where(
+          and(eq(matches.id, matchId), eq(matches.updatedAt, before.updatedAt)),
+        )
+        
+      if ((changed.changes ?? 0) === 0) {
+        throw new ConflictError(
+          "Match was updated by another request; refresh and retry",
+        );
+      }
+      const after: MatchWithSets = {
+        ...before,
+        entryAId,
+        entryBId,
+        courtId,
+        updatedAt,
+      };
+      await writeAuditLog(tx, {
+        userId: actor.userId,
+        action: "match.swap_sides",
+        entityType: "match",
+        entityId: matchId,
+        before,
+        after,
+        metadata: actor.auditMetadata,
       });
       return after;
     });
@@ -253,6 +514,139 @@ export class MatchOpsService {
 
   async finishMatch(actor: ActorContext, raw: unknown): Promise<MatchWithSets> {
     return this.enterScore(actor, raw);
+  }
+
+  /**
+   * Persist in-progress set scores without completing the match (for live board).
+   * Incomplete current-set scores are allowed; illegal completed-set scores are rejected.
+   */
+  async saveLiveScore(
+    actor: ActorContext,
+    raw: unknown,
+  ): Promise<MatchWithSets> {
+    assertCanPerform(actor.role, "score");
+    const input = parseOrThrow(enterScoreSchema, raw);
+    const before = await this.getById(input.matchId);
+    await this.assertTournamentWritable(before.eventId);
+    this.assertOptimisticConcurrency(before, input.expectedUpdatedAt);
+    if (before.status !== "IN_PROGRESS") {
+      throw new DomainStateError(
+        "Live scores can only be saved while the match is in progress",
+        "MATCH_NOT_IN_PROGRESS",
+      );
+    }
+    this.assertBothSidesPresent(before);
+
+    const rule = parseRuleSnapshot(before.ruleSnapshotJson);
+    const setsToWin = computeSetsToWin(rule.bestOfSets);
+    const sorted = [...input.sets].sort((a, b) => a.setNumber - b.setNumber);
+    for (let index = 0; index < sorted.length; index += 1) {
+      if (sorted[index]!.setNumber !== index + 1) {
+        throw new ValidationError(
+          `Set numbers must be contiguous starting at 1; expected ${index + 1}`,
+          "INVALID_SET_NUMBER",
+        );
+      }
+    }
+
+    let setsWonA = 0;
+    let setsWonB = 0;
+    const setRows: FinishPayload["sets"] = [];
+    for (const set of sorted) {
+      if (setsWonA >= setsToWin || setsWonB >= setsToWin) {
+        throw new ValidationError(
+          "Cannot include additional sets after a match winner is already determined",
+          "EXTRA_SETS",
+        );
+      }
+      const isDecidingSet =
+        setsWonA === setsToWin - 1 && setsWonB === setsToWin - 1;
+      let winnerEntryId: string | null = null;
+      try {
+        winnerEntryId = calculateSetWinner({
+          scoreA: set.scoreA,
+          scoreB: set.scoreB,
+          rule,
+          entryIdA: before.entryAId!,
+          entryIdB: before.entryBId!,
+          isDecidingSet,
+        });
+      } catch (err) {
+        if (err instanceof DomainError) {
+          throw new ValidationError(err.message, err.code);
+        }
+        throw err;
+      }
+      if (winnerEntryId === before.entryAId) {
+        setsWonA += 1;
+      } else if (winnerEntryId === before.entryBId) {
+        setsWonB += 1;
+      }
+      setRows.push({
+        setNumber: set.setNumber,
+        scoreA: set.scoreA,
+        scoreB: set.scoreB,
+        winnerEntryId,
+      });
+    }
+
+    return this.db.transaction(async (tx) => {
+      const updatedAt = nowIso();
+      const changed = tx
+        .update(matches)
+        .set({ updatedAt })
+        .where(
+          and(
+            eq(matches.id, before.id),
+            eq(matches.updatedAt, before.updatedAt),
+          ),
+        )
+        
+      if ((changed.changes ?? 0) === 0) {
+        throw new ConflictError(
+          "Match was updated by another request; refresh and retry",
+        );
+      }
+
+      await tx.delete(matchSets).where(eq(matchSets.matchId, before.id))
+      const persistedSets = setRows.map((set) => {
+        const id = createId();
+        await tx.insert(matchSets)
+          .values({
+            id,
+            matchId: before.id,
+            setNumber: set.setNumber,
+            scoreA: set.scoreA,
+            scoreB: set.scoreB,
+            winnerEntryId: set.winnerEntryId,
+          })
+          
+        return {
+          id,
+          matchId: before.id,
+          setNumber: set.setNumber,
+          scoreA: set.scoreA,
+          scoreB: set.scoreB,
+          winnerEntryId: set.winnerEntryId,
+        };
+      });
+
+      const after: MatchWithSets = {
+        ...before,
+        updatedAt,
+        sets: persistedSets,
+      };
+      await writeAuditLog(tx, {
+        userId: actor.userId,
+        action: "match.live_score",
+        entityType: "match",
+        entityId: before.id,
+        before,
+        after,
+        metadata: actor.auditMetadata,
+      });
+      return after;
+    });
   }
 
   async resolveSpecial(
@@ -307,6 +701,21 @@ export class MatchOpsService {
           winnerEntryId: s.winnerEntryId,
         }));
       }
+    } else if (
+      input.resolution === "WALKOVER" ||
+      input.resolution === "NO_SHOW"
+    ) {
+      // Award pointsToWin–0 for each set needed to win (standings + scoreboard).
+      const rule = parseRuleSnapshot(before.ruleSnapshotJson);
+      const need = computeSetsToWin(rule.bestOfSets);
+      const pts = rule.pointsToWin;
+      const winnerIsA = input.winnerEntryId === before.entryAId;
+      setRows = Array.from({ length: need }, (_, i) => ({
+        setNumber: i + 1,
+        scoreA: winnerIsA ? pts : 0,
+        scoreB: winnerIsA ? 0 : pts,
+        winnerEntryId: input.winnerEntryId,
+      }));
     }
 
     return this.finishWithOutcome(actor, before, {
@@ -329,7 +738,7 @@ export class MatchOpsService {
     this.assertOptimisticConcurrency(before, input.expectedUpdatedAt);
     assertMatchCancellable(before.status);
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
       const changed = tx
         .update(matches)
@@ -346,13 +755,13 @@ export class MatchOpsService {
             eq(matches.updatedAt, before.updatedAt),
           ),
         )
-        .run();
+        
       if ((changed.changes ?? 0) === 0) {
         throw new ConflictError(
           "Match was updated by another request; refresh and retry",
         );
       }
-      tx.delete(matchSets).where(eq(matchSets.matchId, input.matchId)).run();
+      await tx.delete(matchSets).where(eq(matchSets.matchId, input.matchId))
 
       const after: MatchWithSets = {
         ...before,
@@ -363,7 +772,7 @@ export class MatchOpsService {
         updatedAt,
         sets: [],
       };
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "match.cancel",
         entityType: "match",
@@ -426,7 +835,7 @@ export class MatchOpsService {
       metadata?: unknown;
     },
   ): Promise<MatchWithSets> {
-    const finished = this.db.transaction((tx) => {
+    const finished = this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
       const completedAt = updatedAt;
       const startedAt = payload.startedAt ?? before.startedAt ?? updatedAt;
@@ -447,17 +856,17 @@ export class MatchOpsService {
             eq(matches.updatedAt, before.updatedAt),
           ),
         )
-        .run();
+        
       if ((changed.changes ?? 0) === 0) {
         throw new ConflictError(
           "Match was updated by another request; refresh and retry",
         );
       }
 
-      tx.delete(matchSets).where(eq(matchSets.matchId, before.id)).run();
+      await tx.delete(matchSets).where(eq(matchSets.matchId, before.id))
       const persistedSets = payload.sets.map((set) => {
         const id = createId();
-        tx.insert(matchSets)
+        await tx.insert(matchSets)
           .values({
             id,
             matchId: before.id,
@@ -466,7 +875,7 @@ export class MatchOpsService {
             scoreB: set.scoreB,
             winnerEntryId: set.winnerEntryId,
           })
-          .run();
+          
         return {
           id,
           matchId: before.id,
@@ -488,14 +897,14 @@ export class MatchOpsService {
         sets: persistedSets,
       };
 
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: options?.action ?? "match.finish",
         entityType: "match",
         entityId: before.id,
         before,
         after,
-        metadata: options?.metadata,
+        metadata: mergeAuditMetadata(actor.auditMetadata, options?.metadata),
       });
 
       return after;

@@ -20,6 +20,24 @@ import {
 import { DrawBoard } from "@/features/draw/components/draw-board";
 import { DrawHistoryList } from "@/features/draw/components/draw-history-list";
 import { getDb } from "@/db/client";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ tournamentId: string; eventId: string }>;
+}) {
+  const { tournamentId, eventId } = await params;
+  const t = await getTranslations("draw");
+  const db = getDb();
+  try {
+    await new TournamentService(db).getById(tournamentId);
+    const event = await new EventService(db).getById(eventId);
+    return pageTitle(t("historyTitle"), event.name);
+  } catch {
+    return pageTitle(t("historyTitle"));
+  }
+}
 
 export const dynamic = "force-dynamic";
 

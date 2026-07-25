@@ -1,5 +1,5 @@
 # Docker dev — Next.js HMR trong container (không pnpm build).
-# Test chạy trên host: make test  (SQLite temp files)
+# Test chạy trên host: make test  (DB tournament_manager_test @ 192.168.0.17)
 #
 # Quick start:
 #   cp .env.docker.example .env
@@ -73,7 +73,7 @@ links:
 	echo ""; \
 	echo "Local links:"; \
 	echo "  App:         http://localhost:$${APP_PORT}"; \
-	echo "  SQLite:      volume tm_data → /app/data/tournament-manager.db"; \
+	echo "  PostgreSQL:  \$${DATABASE_URL:-192.168.0.17:5432/tournament_manager}"; \
 	echo "  Health:      http://localhost:$${APP_PORT}/api/health"; \
 	echo "  Logs:        make logs"; \
 	echo ""

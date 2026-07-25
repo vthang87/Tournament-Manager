@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-export DATABASE_URL="${DATABASE_URL:-/data/tournament-manager.db}"
+export DATABASE_URL="${DATABASE_URL:-postgresql://tournament:tournament@postgres:5432/tournament_manager}"
 
 echo "Running database migrations..."
 pnpm db:migrate

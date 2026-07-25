@@ -1,13 +1,13 @@
 import path from "node:path";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { createDb } from "./client";
 
-export function runMigrations(databasePath?: string): void {
-  const { db, sqlite } = createDb(databasePath);
+export async function runMigrations(connectionString?: string): Promise<void> {
+  const { db, pool } = createDb(connectionString);
   try {
     const migrationsFolder = path.join(process.cwd(), "src/db/migrations");
-    migrate(db, { migrationsFolder });
+    await migrate(db, { migrationsFolder });
   } finally {
-    sqlite.close();
+    await pool.end();
   }
 }

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import {
@@ -12,7 +13,30 @@ import { PublicViewService } from "@/application/services";
 import { getDb } from "@/db/client";
 import { LocaleSwitcher } from "@/features/i18n/locale-switcher";
 import { LiveRefresh } from "@/features/live-board/live-refresh";
+import {
+  matchStatusRowClass,
+  matchStatusTextClass,
+} from "@/features/matches/match-status-styles";
+import { PublicSectionNav } from "@/features/public-board/public-section-nav";
+import { localizeStageName } from "@/features/stages/localize-stage-name";
 import { matchStatusKey } from "@/i18n/status-labels";
+import { cn } from "@/lib/utils";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const t = await getTranslations("public");
+  try {
+    const view = await new PublicViewService(getDb()).getBySlug(slug);
+    return pageTitle(view.tournament.name);
+  } catch {
+    return pageTitle(t("title"));
+  }
+}
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -26,6 +50,7 @@ export default async function PublicTournamentPage({
   const t = await getTranslations("public");
   const tc = await getTranslations("common");
   const tStatus = await getTranslations("status");
+  const tStages = await getTranslations("stages");
   let view;
   try {
     view = await new PublicViewService(getDb()).getBySlug(slug);
@@ -43,38 +68,48 @@ export default async function PublicTournamentPage({
   ] as const;
 
   return (
-    <div className="mx-auto min-h-screen max-w-5xl px-4 py-8 text-slate-900">
+    <div className="mx-auto min-h-screen max-w-5xl px-4 py-5 text-slate-900 md:py-6">
       <LiveRefresh intervalMs={15_000} />
-      <header className="flex flex-wrap items-start justify-between gap-6 border-b border-slate-200 pb-6">
-        <div>
-          <p className="text-sm font-medium uppercase tracking-wide text-slate-500">
+      <header className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
             {t("eyebrow")}
           </p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight md:text-4xl">
+          <h1 className="mt-0.5 text-2xl font-semibold tracking-tight md:text-3xl">
             {tournament.name}
           </h1>
-          <p className="mt-2 max-w-2xl text-slate-600">
+          <p className="mt-1 text-sm text-slate-600">
             {[tournament.location, tournament.timezone, tournament.status]
               .filter(Boolean)
               .join(" · ")}
           </p>
           {tournament.description ? (
-            <p className="mt-2 text-sm text-slate-600">{tournament.description}</p>
+            <p className="mt-1 max-w-2xl text-sm leading-snug text-slate-600">
+              {tournament.description}
+            </p>
           ) : null}
         </div>
-        <div className="flex flex-col items-end gap-3">
-          <LocaleSwitcher compact />
+        <div className="flex shrink-0 items-start gap-3">
+          <div className="flex flex-col items-end gap-2">
+            <LocaleSwitcher compact />
+            <Link
+              href={`/t/${slug}/live`}
+              className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+            >
+              {t("openLiveBoard")}
+            </Link>
+          </div>
           {view.qrDataUrl ? (
             <figure className="text-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={view.qrDataUrl}
                 alt={t("qrAlt", { url: view.publicUrl })}
-                width={160}
-                height={160}
-                className="mx-auto rounded-md border border-slate-200 bg-white p-2"
+                width={96}
+                height={96}
+                className="mx-auto rounded-md border border-slate-200 bg-white p-1.5"
               />
-              <figcaption className="mt-2 max-w-[10rem] text-xs text-slate-500">
+              <figcaption className="mt-1 max-w-[6.5rem] truncate text-[10px] leading-tight text-slate-500">
                 {t("scanFor", { url: view.publicUrl })}
               </figcaption>
             </figure>
@@ -82,23 +117,17 @@ export default async function PublicTournamentPage({
         </div>
       </header>
 
-      <nav
-        aria-label={t("sectionsNav")}
-        className="sticky top-0 z-10 -mx-4 mt-4 flex gap-2 overflow-x-auto border-b border-slate-200 bg-[color:var(--background)] px-4 py-3 text-sm"
-      >
-        {sectionNav.map(([id, label]) => (
-          <a
-            key={id}
-            href={`#${id}`}
-            className="rounded-md px-3 py-1.5 text-slate-700 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-800"
-          >
-            {label}
-          </a>
-        ))}
-      </nav>
+      <PublicSectionNav
+        ariaLabel={t("sectionsNav")}
+        items={sectionNav.map(([id, label]) => ({ id, label }))}
+      />
 
-      <main className="mt-8 space-y-12">
-        <section id="schedule" aria-labelledby="schedule-heading">
+      <main className="mt-6 space-y-10">
+        <section
+          id="schedule"
+          aria-labelledby="schedule-heading"
+          className="scroll-mt-14"
+        >
           <h2 id="schedule-heading" className="text-2xl font-semibold">
             {t("schedule")}
           </h2>
@@ -112,7 +141,11 @@ export default async function PublicTournamentPage({
           />
         </section>
 
-        <section id="results" aria-labelledby="results-heading">
+        <section
+          id="results"
+          aria-labelledby="results-heading"
+          className="scroll-mt-14"
+        >
           <h2 id="results-heading" className="text-2xl font-semibold">
             {t("results")}
           </h2>
@@ -126,7 +159,11 @@ export default async function PublicTournamentPage({
           />
         </section>
 
-        <section id="groups" aria-labelledby="groups-heading">
+        <section
+          id="groups"
+          aria-labelledby="groups-heading"
+          className="scroll-mt-14"
+        >
           <h2 id="groups-heading" className="text-2xl font-semibold">
             {t("groups")}
           </h2>
@@ -154,7 +191,11 @@ export default async function PublicTournamentPage({
           )}
         </section>
 
-        <section id="standings" aria-labelledby="standings-heading">
+        <section
+          id="standings"
+          aria-labelledby="standings-heading"
+          className="scroll-mt-14"
+        >
           <h2 id="standings-heading" className="text-2xl font-semibold">
             {t("standings")}
           </h2>
@@ -165,7 +206,8 @@ export default async function PublicTournamentPage({
               {view.standings.map((group) => (
                 <div key={group.groupId}>
                   <h3 className="text-lg font-medium">
-                    {group.groupName} · {group.stageName}
+                    {group.groupName} ·{" "}
+                    {localizeStageName(group.stageName, tStages)}
                   </h3>
                   <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200 bg-white">
                     <Table>
@@ -201,7 +243,11 @@ export default async function PublicTournamentPage({
           )}
         </section>
 
-        <section id="bracket" aria-labelledby="bracket-heading">
+        <section
+          id="bracket"
+          aria-labelledby="bracket-heading"
+          className="scroll-mt-14"
+        >
           <h2 id="bracket-heading" className="text-2xl font-semibold">
             {t("bracket")}
           </h2>
@@ -211,7 +257,8 @@ export default async function PublicTournamentPage({
             view.brackets.map((bracket) => (
               <div key={bracket.stageId} className="mt-4 space-y-3">
                 <h3 className="text-lg font-medium">
-                  {bracket.stageName} · {t("drawSize", { size: bracket.bracketSize })}
+                  {localizeStageName(bracket.stageName, tStages)} ·{" "}
+                  {t("drawSize", { size: bracket.bracketSize })}
                 </h3>
                 <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
                   <Table>
@@ -301,7 +348,10 @@ function MatchTable({
         </TableHeader>
         <TableBody>
           {rows.map((m) => (
-            <TableRow key={m.id}>
+            <TableRow
+              key={m.id}
+              className={cn(matchStatusRowClass(m.status))}
+            >
               {showWhen ? (
                 <TableCell className="whitespace-nowrap text-sm">
                   {m.scheduledAt
@@ -319,7 +369,9 @@ function MatchTable({
                 ) : null}
               </TableCell>
               <TableCell>{m.courtCode ?? tc("dash")}</TableCell>
-              <TableCell>{tStatus(matchStatusKey(m.status))}</TableCell>
+              <TableCell className={cn(matchStatusTextClass(m.status))}>
+                {tStatus(matchStatusKey(m.status))}
+              </TableCell>
               {showScore ? (
                 <TableCell>
                   {m.sets.map((s) => `${s.scoreA}-${s.scoreB}`).join(", ") ||

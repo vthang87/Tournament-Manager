@@ -36,7 +36,7 @@ export class ClubService {
     assertCanPerform(actor.role, "import");
     const input = parseOrThrow(createClubSchema, raw);
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const now = nowIso();
       const row = {
         id: createId(),
@@ -46,8 +46,8 @@ export class ClubService {
         createdAt: now,
         updatedAt: now,
       };
-      tx.insert(clubs).values(row).run();
-      writeAuditLog(tx, {
+      await tx.insert(clubs).values(row)
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "club.create",
         entityType: "club",
@@ -63,7 +63,7 @@ export class ClubService {
     const input = parseOrThrow(updateClubSchema, raw) as UpdateClubInput;
     const existing = await this.getById(id);
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
       const next = {
         name: input.name ?? existing.name,
@@ -73,9 +73,9 @@ export class ClubService {
           input.logoUrl !== undefined ? input.logoUrl : existing.logoUrl,
         updatedAt,
       };
-      tx.update(clubs).set(next).where(eq(clubs.id, id)).run();
+      await tx.update(clubs).set(next).where(eq(clubs.id, id))
       const updated = { ...existing, ...next };
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "club.update",
         entityType: "club",
@@ -90,9 +90,9 @@ export class ClubService {
   async delete(actor: ActorContext, id: string): Promise<void> {
     assertCanPerform(actor.role, "import");
     const existing = await this.getById(id);
-    this.db.transaction((tx) => {
-      tx.delete(clubs).where(eq(clubs.id, id)).run();
-      writeAuditLog(tx, {
+    this.db.transaction(async (tx) => {
+      await tx.delete(clubs).where(eq(clubs.id, id))
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "club.delete",
         entityType: "club",

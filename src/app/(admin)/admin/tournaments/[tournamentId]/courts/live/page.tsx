@@ -12,8 +12,26 @@ import {
 import { DashboardService, TournamentService } from "@/application/services";
 import { getDb } from "@/db/client";
 import { LiveRefresh } from "@/features/live-board/live-refresh";
+import { MatchElapsedClock } from "@/features/live-board/match-elapsed-clock";
 import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
 import { matchStatusKey } from "@/i18n/status-labels";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ tournamentId: string }>;
+}) {
+  const { tournamentId } = await params;
+  const t = await getTranslations("courts");
+  const db = getDb();
+  try {
+    const tournament = await new TournamentService(db).getById(tournamentId);
+    return pageTitle(t("courtDashboard"), tournament.name);
+  } catch {
+    return pageTitle(t("courtDashboard"));
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -80,14 +98,25 @@ export default async function CourtLivePage({
                 <TableCell>
                   {court.nowPlaying ? (
                     <div>
-                      <p>
+                      <Link
+                        href={`/admin/tournaments/${tournamentId}/events/${court.nowPlaying.eventId}/matches/${court.nowPlaying.matchId}`}
+                        className="font-medium underline-offset-2 hover:underline"
+                      >
                         {court.nowPlaying.entryAName ?? tc("tbd")} {tc("vs")}{" "}
                         {court.nowPlaying.entryBName ?? tc("tbd")}
+                      </Link>
+                      <p className="mt-0.5 text-sm font-semibold tabular-nums text-slate-800">
+                        {court.nowPlaying.scoreSummary || tc("dash")}
                       </p>
                       <p className="text-xs text-slate-500">
                         {court.nowPlaying.eventName} ·{" "}
                         {tStatus(matchStatusKey(court.nowPlaying.status))}
                       </p>
+                      <MatchElapsedClock
+                        startedAt={court.nowPlaying.startedAt}
+                        compact
+                        className="mt-1 text-xs"
+                      />
                     </div>
                   ) : (
                     <span className="text-slate-500">{t("idle")}</span>
@@ -96,10 +125,13 @@ export default async function CourtLivePage({
                 <TableCell>
                   {court.next ? (
                     <div>
-                      <p>
+                      <Link
+                        href={`/admin/tournaments/${tournamentId}/events/${court.next.eventId}/matches/${court.next.matchId}`}
+                        className="font-medium underline-offset-2 hover:underline"
+                      >
                         {court.next.entryAName ?? tc("tbd")} {tc("vs")}{" "}
                         {court.next.entryBName ?? tc("tbd")}
-                      </p>
+                      </Link>
                       <p className="text-xs text-slate-500">
                         {court.next.scheduledAt
                           ? new Date(court.next.scheduledAt).toLocaleString()

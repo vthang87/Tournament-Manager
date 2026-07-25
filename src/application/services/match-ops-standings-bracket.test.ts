@@ -179,6 +179,7 @@ describe("TASK 009–013 match ops / standings / bracket / schedule", () => {
     entryBId: string;
     groupId?: string | null;
     generationKey?: string | null;
+    courtId?: string | null;
   }): Promise<MatchRecord> {
     return new DrizzleMatchRepository(db).create({
       eventId: input.eventId,
@@ -189,17 +190,19 @@ describe("TASK 009–013 match ops / standings / bracket / schedule", () => {
       ruleSnapshotJson: JSON.stringify(defaultRule),
       generationKey: input.generationKey ?? null,
       roundNumber: 0,
+      courtId: input.courtId ?? null,
     });
   }
 
   it("enforces match state transitions and authorization", async () => {
-    const { event, groupStage } = await seedBase();
+    const { event, groupStage, court } = await seedBase();
     const [a, b] = await seedEntries(event.id, 2);
     const match = await createPendingMatch({
       eventId: event.id,
       stageId: groupStage.id,
       entryAId: a!,
       entryBId: b!,
+      courtId: court.id,
     });
     const ops = new MatchOpsService(db);
 
@@ -223,13 +226,14 @@ describe("TASK 009–013 match ops / standings / bracket / schedule", () => {
   });
 
   it("scores a normal best-of-3 match and ignores client winner", async () => {
-    const { event, groupStage } = await seedBase();
+    const { event, groupStage, court } = await seedBase();
     const [a, b] = await seedEntries(event.id, 2);
     const match = await createPendingMatch({
       eventId: event.id,
       stageId: groupStage.id,
       entryAId: a!,
       entryBId: b!,
+      courtId: court.id,
     });
     const ops = new MatchOpsService(db);
     await ops.startMatch(scorekeeper, match.id);
@@ -272,6 +276,11 @@ describe("TASK 009–013 match ops / standings / bracket / schedule", () => {
     expect(wo.status).toBe("WALKOVER");
     expect(wo.resolution).toBe("WALKOVER");
     expect(wo.winnerEntryId).toBe(a);
+    expect(wo.sets).toHaveLength(2);
+    expect(wo.sets.map((s) => [s.scoreA, s.scoreB])).toEqual([
+      [11, 0],
+      [11, 0],
+    ]);
 
     await expect(
       ops.correctScore(scorekeeper, {
@@ -301,13 +310,14 @@ describe("TASK 009–013 match ops / standings / bracket / schedule", () => {
   });
 
   it("blocks stale optimistic concurrency on start", async () => {
-    const { event, groupStage } = await seedBase();
+    const { event, groupStage, court } = await seedBase();
     const [a, b] = await seedEntries(event.id, 2);
     const match = await createPendingMatch({
       eventId: event.id,
       stageId: groupStage.id,
       entryAId: a!,
       entryBId: b!,
+      courtId: court.id,
     });
     const ops = new MatchOpsService(db);
     await expect(
@@ -316,7 +326,7 @@ describe("TASK 009–013 match ops / standings / bracket / schedule", () => {
   });
 
   it("calculates standings with tie-break traces (service smoke)", async () => {
-    const { event, groupStage } = await seedBase();
+    const { event, groupStage, court } = await seedBase();
     const [e1, e2, e3] = await seedEntries(event.id, 3);
     const groups = new DrizzleGroupRepository(db);
     const group = await groups.create({
@@ -338,6 +348,7 @@ describe("TASK 009–013 match ops / standings / bracket / schedule", () => {
       entryBId: e2!,
       ruleSnapshotJson: JSON.stringify(defaultRule),
       roundNumber: 1,
+      courtId: court.id,
     });
     const m23 = await repo.create({
       eventId: event.id,
@@ -347,6 +358,7 @@ describe("TASK 009–013 match ops / standings / bracket / schedule", () => {
       entryBId: e3!,
       ruleSnapshotJson: JSON.stringify(defaultRule),
       roundNumber: 1,
+      courtId: court.id,
     });
     const m31 = await repo.create({
       eventId: event.id,
@@ -356,6 +368,7 @@ describe("TASK 009–013 match ops / standings / bracket / schedule", () => {
       entryBId: e1!,
       ruleSnapshotJson: JSON.stringify(defaultRule),
       roundNumber: 1,
+      courtId: court.id,
     });
 
     const ops = new MatchOpsService(db);
@@ -399,7 +412,7 @@ describe("TASK 009–013 match ops / standings / bracket / schedule", () => {
   });
 
   it("generates bracket, advances winner, and is advance-idempotent", async () => {
-    const { event, groupStage, koStage } = await seedBase();
+    const { event, groupStage, koStage, court } = await seedBase();
     // 4 entries → 2 groups of 2 → top 1 each → bracket size 2
     const entryIds = await seedEntries(event.id, 4);
     const groups = new DrizzleGroupRepository(db);
@@ -453,6 +466,7 @@ describe("TASK 009–013 match ops / standings / bracket / schedule", () => {
         entryBId: entryB,
         ruleSnapshotJson: JSON.stringify(defaultRule),
         roundNumber: 1,
+        courtId: court.id,
       });
       await ops.startMatch(scorekeeper, m.id);
       const current = await ops.getById(m.id);
@@ -499,7 +513,9 @@ describe("TASK 009–013 match ops / standings / bracket / schedule", () => {
     expect(final.entryAId).toBeTruthy();
     expect(final.entryBId).toBeTruthy();
 
-    await ops.startMatch(scorekeeper, final.id);
+    await ops.startMatch(scorekeeper, final.id, undefined, {
+      courtId: court.id,
+    });
     const live = await ops.getById(final.id);
     const winner = live.entryAId!;
     await ops.enterScore(scorekeeper, {

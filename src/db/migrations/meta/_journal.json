@@ -1,26 +1,12 @@
 {
   "version": "7",
-  "dialect": "sqlite",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
-      "version": "6",
-      "when": 1784480697034,
-      "tag": "0000_bright_marvel_boy",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1784483359790,
-      "tag": "0001_legal_gladiator",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1784483438393,
-      "tag": "0002_cultured_psynapse",
+      "version": "7",
+      "when": 1784953609617,
+      "tag": "0000_sad_adam_destine",
       "breakpoints": true
     }
   ]

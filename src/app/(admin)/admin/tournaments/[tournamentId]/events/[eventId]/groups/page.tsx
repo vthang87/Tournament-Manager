@@ -28,8 +28,29 @@ import { getDb } from "@/db/client";
 import { DrizzleMatchRepository } from "@/db/repositories/match-repository";
 import { DrizzleGroupRepository } from "@/db/repositories/schedule-repository";
 import { entryLabel, scoreLine } from "@/features/matches/match-utils";
+import { MatchupLink } from "@/features/matches/matchup-link";
+import { formatStandingCriteria } from "@/features/standings/criterion-labels";
+import { localizeStageName } from "@/features/stages/localize-stage-name";
 import { matchStatusKey } from "@/i18n/status-labels";
 import { StandingsTable } from "@/features/standings/standings-table";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ tournamentId: string; eventId: string }>;
+}) {
+  const { tournamentId, eventId } = await params;
+  const t = await getTranslations("groups");
+  const db = getDb();
+  try {
+    await new TournamentService(db).getById(tournamentId);
+    const event = await new EventService(db).getById(eventId);
+    return pageTitle(t("title"), event.name);
+  } catch {
+    return pageTitle(t("title"));
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +64,8 @@ export default async function EventGroupsPage({
   const t = await getTranslations("groups");
   const tc = await getTranslations("common");
   const tStatus = await getTranslations("status");
+  const tStandings = await getTranslations("standings");
+  const tStages = await getTranslations("stages");
 
   let tournament;
   let event;
@@ -174,7 +197,7 @@ export default async function EventGroupsPage({
                   <CardTitle className="text-lg">
                     {block.group.name}
                     <span className="ml-2 text-sm font-normal text-slate-500">
-                      {block.stageName}
+                      {localizeStageName(block.stageName, tStages)}
                     </span>
                   </CardTitle>
                   <CardDescription>
@@ -205,7 +228,10 @@ export default async function EventGroupsPage({
                     {block.standingsResult ? (
                       <p className="mt-2 text-xs text-slate-500">
                         {t("criteriaPrefix")}
-                        {block.standingsResult.rule.criteria.join(" → ")}
+                        {formatStandingCriteria(
+                          block.standingsResult.rule.criteria,
+                          tStandings,
+                        )}
                       </p>
                     ) : null}
                   </div>
@@ -238,14 +264,15 @@ export default async function EventGroupsPage({
                                   {match.roundNumber}
                                 </TableCell>
                                 <TableCell>
-                                  <Link
+                                  <MatchupLink
                                     href={`${basePath}/matches/${match.id}`}
-                                    className="font-medium underline"
-                                  >
-                                    {entryLabel(match.entryAId, labels)}{" "}
-                                    {tc("vs")}{" "}
-                                    {entryLabel(match.entryBId, labels)}
-                                  </Link>
+                                    labelA={entryLabel(match.entryAId, labels)}
+                                    labelB={entryLabel(match.entryBId, labels)}
+                                    entryAId={match.entryAId}
+                                    entryBId={match.entryBId}
+                                    winnerEntryId={match.winnerEntryId}
+                                    vsLabel={tc("vs")}
+                                  />
                                 </TableCell>
                                 <TableCell className="tabular-nums text-slate-600">
                                   {scoreLine(sets)}

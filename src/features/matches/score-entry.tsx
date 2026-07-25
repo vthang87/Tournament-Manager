@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { MatchRuleSnapshot } from "@/core/tournament-engine/match-rules/types";
@@ -11,12 +12,18 @@ import {
   calculateMatchWinner,
   validateSetScore,
   setsToWin,
+  getEffectiveSetPoints,
+  isInProgressSetScore,
+  isValidCompletedSetScore,
 } from "@/core/tournament-engine/scoring";
 import { DomainError } from "@/core/tournament-engine/errors";
 import type { ActionResult } from "@/features/shared/action-utils";
 import { cn } from "@/lib/utils";
+import { localizeScoringError } from "./localize-scoring-error";
 
 type SetDraft = { setNumber: number; scoreA: number; scoreB: number };
+
+const AUTO_SAVE_KEY = "tm.match.autoSaveLive";
 
 export function ScoreEntryPanel({
   matchId,
@@ -29,7 +36,9 @@ export function ScoreEntryPanel({
   initialSets,
   mode = "enter",
   onSubmit,
+  onSaveLive,
   onCorrectionReason,
+  defaultAutoSaveLive = false,
 }: {
   matchId: string;
   entryAId: string;
@@ -41,8 +50,14 @@ export function ScoreEntryPanel({
   initialSets?: SetDraft[];
   mode?: "enter" | "correct";
   onSubmit: (formData: FormData) => Promise<ActionResult>;
+  /** Persist in-progress scores for the live board (enter mode only). */
+  onSaveLive?: (
+    formData: FormData,
+  ) => Promise<ActionResult<{ updatedAt: string }>>;
   /** When mode is correct, reason is required before submit. */
   onCorrectionReason?: boolean;
+  /** Prefer true for court kiosk scoring. */
+  defaultAutoSaveLive?: boolean;
 }) {
   const router = useRouter();
   const t = useTranslations("matches");
@@ -64,25 +79,99 @@ export function ScoreEntryPanel({
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [liveUpdatedAt, setLiveUpdatedAt] = useState(expectedUpdatedAt);
+  const [autoSaveLive, setAutoSaveLive] = useState(defaultAutoSaveLive);
+  const [autoSaveHint, setAutoSaveHint] = useState<string | null>(null);
+  const autoSaveSeq = useRef(0);
+  const lastSavedSetsJson = useRef<string | null>(null);
+  const liveUpdatedAtRef = useRef(liveUpdatedAt);
+  const setsRef = useRef(sets);
+  const setErrorsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    setLiveUpdatedAt(expectedUpdatedAt);
+  }, [expectedUpdatedAt]);
+
+  useEffect(() => {
+    liveUpdatedAtRef.current = liveUpdatedAt;
+  }, [liveUpdatedAt]);
+
+  useEffect(() => {
+    setsRef.current = sets;
+  }, [sets]);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(AUTO_SAVE_KEY);
+      if (stored === null) {
+        return;
+      }
+      const next = stored === "1";
+      setAutoSaveLive((prev) => (prev === next ? prev : next));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  function setAutoSavePreference(next: boolean) {
+    setAutoSaveLive(next);
+    try {
+      window.localStorage.setItem(AUTO_SAVE_KEY, next ? "1" : "0");
+    } catch {
+      // ignore
+    }
+  }
 
   const preview = useMemo(() => {
     const setErrors: string[] = [];
     for (let i = 0; i < sets.length; i++) {
       const set = sets[i]!;
+      if (set.scoreA === 0 && set.scoreB === 0) {
+        continue;
+      }
       const setsWonSoFar = previewSetsWon(sets.slice(0, i), entryAId, entryBId);
       const isDeciding =
         setsWonSoFar.a === needed - 1 && setsWonSoFar.b === needed - 1;
+      const points = getEffectiveSetPoints(rule, isDeciding);
+      const legalLive =
+        isValidCompletedSetScore(set.scoreA, set.scoreB, points) ||
+        isInProgressSetScore(set.scoreA, set.scoreB, points);
+
+      if (mode === "enter" && onSaveLive) {
+        // Live scoring allows mid-set scores; only flag illegal states.
+        if (!legalLive) {
+          const result = validateSetScore({
+            scoreA: set.scoreA,
+            scoreB: set.scoreB,
+            rule,
+            isDecidingSet: isDeciding,
+          });
+          setErrors.push(
+            t("setError", {
+              setNumber: set.setNumber,
+              errors:
+                result.errors
+                  .map((e) => localizeScoringError(t, e))
+                  .join("; ") || t("invalidSequence"),
+            }),
+          );
+        }
+        continue;
+      }
+
       const result = validateSetScore({
         scoreA: set.scoreA,
         scoreB: set.scoreB,
         rule,
         isDecidingSet: isDeciding,
       });
-      if (!result.valid && (set.scoreA > 0 || set.scoreB > 0)) {
+      if (!result.valid) {
         setErrors.push(
           t("setError", {
             setNumber: set.setNumber,
-            errors: result.errors.map((e) => e.message).join("; "),
+            errors: result.errors
+              .map((e) => localizeScoringError(t, e))
+              .join("; "),
           }),
         );
       }
@@ -99,13 +188,13 @@ export function ScoreEntryPanel({
     } catch (err) {
       const message =
         err instanceof DomainError
-          ? err.message
+          ? localizeScoringError(t, err)
           : err instanceof Error
             ? err.message
             : t("invalidSequence");
       return { outcome: null, setErrors, engineError: message };
     }
-  }, [sets, rule, entryAId, entryBId, needed, t]);
+  }, [sets, rule, entryAId, entryBId, needed, t, mode, onSaveLive]);
 
   function updateScore(setIndex: number, side: "A" | "B", value: number) {
     const next = Math.max(0, Math.min(99, value));
@@ -169,6 +258,23 @@ export function ScoreEntryPanel({
     updateScore(activeCell.setIndex, activeCell.side, 0);
   }
 
+  function buildFormData(
+    overrides?: { sets?: SetDraft[]; updatedAt?: string },
+  ) {
+    const formData = new FormData();
+    const nextSets = overrides?.sets ?? sets;
+    formData.set("matchId", matchId);
+    formData.set("setsJson", JSON.stringify(nextSets));
+    formData.set(
+      "expectedUpdatedAt",
+      overrides?.updatedAt ?? liveUpdatedAtRef.current,
+    );
+    if (mode === "correct") {
+      formData.set("reason", reason.trim());
+    }
+    return formData;
+  }
+
   function handleSubmit() {
     setError(null);
     if (mode === "correct" && onCorrectionReason && reason.trim().length < 1) {
@@ -184,16 +290,8 @@ export function ScoreEntryPanel({
       return;
     }
 
-    const formData = new FormData();
-    formData.set("matchId", matchId);
-    formData.set("setsJson", JSON.stringify(sets));
-    formData.set("expectedUpdatedAt", expectedUpdatedAt);
-    if (mode === "correct") {
-      formData.set("reason", reason.trim());
-    }
-
     startTransition(async () => {
-      const result = await onSubmit(formData);
+      const result = await onSubmit(buildFormData());
       if (!result.ok) {
         setError(result.error);
         return;
@@ -201,6 +299,88 @@ export function ScoreEntryPanel({
       router.refresh();
     });
   }
+
+  async function persistLiveScore(options?: {
+    silent?: boolean;
+    setsSnapshot?: SetDraft[];
+  }): Promise<boolean> {
+    if (!onSaveLive) {
+      return false;
+    }
+    const nextSets = options?.setsSnapshot ?? sets;
+    const errors = options?.silent ? setErrorsRef.current : preview.setErrors;
+    if (errors.length > 0) {
+      if (!options?.silent) {
+        setError(errors[0] ?? t("invalidSequence"));
+      }
+      return false;
+    }
+
+    const setsJson = JSON.stringify(nextSets);
+    const seq = ++autoSaveSeq.current;
+    const result = await onSaveLive(
+      buildFormData({
+        sets: nextSets,
+        updatedAt: liveUpdatedAtRef.current,
+      }),
+    );
+    if (seq !== autoSaveSeq.current) {
+      return false;
+    }
+    if (!result.ok) {
+      if (!options?.silent) {
+        setError(result.error);
+      } else {
+        setAutoSaveHint(result.error);
+      }
+      return false;
+    }
+    if (result.data?.updatedAt) {
+      setLiveUpdatedAt(result.data.updatedAt);
+      liveUpdatedAtRef.current = result.data.updatedAt;
+    }
+    lastSavedSetsJson.current = setsJson;
+    setError(null);
+    setAutoSaveHint(options?.silent ? t("autoSaveSaved") : null);
+    return true;
+  }
+
+  function handleSaveLive() {
+    setError(null);
+    setAutoSaveHint(null);
+    startTransition(async () => {
+      const ok = await persistLiveScore();
+      if (ok) {
+        router.refresh();
+      }
+    });
+  }
+
+  useEffect(() => {
+    setErrorsRef.current = preview.setErrors;
+  }, [preview.setErrors]);
+
+  useEffect(() => {
+    if (!autoSaveLive || !onSaveLive || mode !== "enter" || pending) {
+      return;
+    }
+    if (preview.setErrors.length > 0) {
+      return;
+    }
+    const setsJson = JSON.stringify(sets);
+    if (setsJson === lastSavedSetsJson.current) {
+      return;
+    }
+
+    const snapshot = sets.map((s) => ({ ...s }));
+    const timer = window.setTimeout(() => {
+      setAutoSaveHint(t("autoSaveSaving"));
+      void persistLiveScore({ silent: true, setsSnapshot: snapshot });
+    }, 650);
+
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- debounce on sets / toggle
+  }, [autoSaveLive, sets, mode, onSaveLive, pending, preview.setErrors]);
 
   const winnerPreview =
     preview.outcome?.isComplete && preview.outcome.winnerEntryId
@@ -352,7 +532,8 @@ export function ScoreEntryPanel({
         </ul>
       ) : null}
 
-      {preview.engineError ? (
+      {preview.engineError &&
+      !(mode === "enter" && onSaveLive && !preview.outcome?.isComplete) ? (
         <p className="text-sm text-amber-800">{preview.engineError}</p>
       ) : null}
 
@@ -388,18 +569,50 @@ export function ScoreEntryPanel({
         </p>
       ) : null}
 
-      <Button
-        type="button"
-        className="h-12 w-full text-base"
-        disabled={pending || !preview.outcome?.isComplete}
-        onClick={handleSubmit}
-      >
-        {pending
-          ? tCommon("saving")
-          : mode === "correct"
-            ? t("saveCorrection")
-            : t("finishMatch")}
-      </Button>
+      {mode === "enter" && onSaveLive ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label
+            htmlFor="autoSaveLive"
+            className="flex cursor-pointer items-center gap-2 text-sm text-slate-700"
+          >
+            <Checkbox
+              id="autoSaveLive"
+              checked={autoSaveLive}
+              onChange={(e) => setAutoSavePreference(e.target.checked)}
+            />
+            {t("autoSaveLive")}
+          </label>
+          {autoSaveLive && autoSaveHint ? (
+            <p className="text-xs text-slate-500">{autoSaveHint}</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="flex flex-col gap-2 sm:flex-row">
+        {mode === "enter" && onSaveLive ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12 w-full text-base sm:flex-1"
+            disabled={pending || autoSaveLive}
+            onClick={handleSaveLive}
+          >
+            {pending ? tCommon("saving") : t("saveLiveScore")}
+          </Button>
+        ) : null}
+        <Button
+          type="button"
+          className="h-12 w-full text-base sm:flex-1"
+          disabled={pending || !preview.outcome?.isComplete}
+          onClick={handleSubmit}
+        >
+          {pending
+            ? tCommon("saving")
+            : mode === "correct"
+              ? t("saveCorrection")
+              : t("finishMatch")}
+        </Button>
+      </div>
     </div>
   );
 }

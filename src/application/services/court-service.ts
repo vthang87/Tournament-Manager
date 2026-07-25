@@ -1,5 +1,10 @@
-import { ConflictError, NotFoundError } from "@/application/errors";
-import type { ActorContext, Court, UpdateCourtInput } from "@/core/domain";
+import {
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from "@/application/errors";
+import type { ActorContext, Court, UpdateCourtInput, UserRole } from "@/core/domain";
 import {
   assertTournamentNotArchived,
 } from "@/core/domain/state-machines";
@@ -9,6 +14,7 @@ import { DrizzleTournamentRepository } from "@/db/repositories/tournament-reposi
 import { courts } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit";
 import { assertCanPerform } from "@/lib/auth/policies";
+import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { createId, nowIso } from "@/lib/id";
 import {
   createCourtSchema,
@@ -16,6 +22,15 @@ import {
   updateCourtSchema,
 } from "@/lib/validation/schemas";
 import { eq } from "drizzle-orm";
+
+const PIN_RE = /^\d{4,6}$/;
+const PIN_ROLES: readonly UserRole[] = ["ADMIN", "OPERATOR"];
+
+function assertCanManageCourtPin(role: UserRole) {
+  if (!PIN_ROLES.includes(role)) {
+    throw new ForbiddenError(`Role ${role} cannot manage court PIN`);
+  }
+}
 
 export class CourtService {
   private readonly courts: DrizzleCourtRepository;
@@ -38,6 +53,10 @@ export class CourtService {
     return court;
   }
 
+  async findByTournamentAndCode(tournamentId: string, code: string) {
+    return this.courts.findByTournamentAndCode(tournamentId, code);
+  }
+
   async create(actor: ActorContext, raw: unknown): Promise<Court> {
     assertCanPerform(actor.role, "setup");
     const input = parseOrThrow(createCourtSchema, raw);
@@ -58,7 +77,7 @@ export class CourtService {
       );
     }
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const now = nowIso();
       const row = {
         id: createId(),
@@ -66,12 +85,22 @@ export class CourtService {
         name: input.name,
         code: input.code,
         active: input.active ?? true,
+        accessPinHash: null as string | null,
         createdAt: now,
         updatedAt: now,
       };
-      tx.insert(courts).values(row).run();
-      const created: Court = { ...row };
-      writeAuditLog(tx, {
+      await tx.insert(courts).values(row)
+      const created: Court = {
+        id: row.id,
+        tournamentId: row.tournamentId,
+        name: row.name,
+        code: row.code,
+        active: row.active,
+        hasAccessPin: false,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      };
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "court.create",
         entityType: "court",
@@ -105,7 +134,7 @@ export class CourtService {
       }
     }
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
       const next = {
         name: input.name ?? existing.name,
@@ -113,9 +142,9 @@ export class CourtService {
         active: input.active ?? existing.active,
         updatedAt,
       };
-      tx.update(courts).set(next).where(eq(courts.id, id)).run();
+      await tx.update(courts).set(next).where(eq(courts.id, id))
       const updated: Court = { ...existing, ...next };
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "court.update",
         entityType: "court",
@@ -127,6 +156,76 @@ export class CourtService {
     });
   }
 
+  async setAccessPin(
+    actor: ActorContext,
+    courtId: string,
+    pin: string,
+  ): Promise<Court> {
+    assertCanManageCourtPin(actor.role);
+    if (!PIN_RE.test(pin)) {
+      throw new ValidationError(
+        "Court PIN must be 4–6 digits",
+        "INVALID_COURT_PIN",
+      );
+    }
+    const existing = await this.getById(courtId);
+    const tournament = await this.tournaments.findById(existing.tournamentId);
+    if (!tournament) {
+      throw new NotFoundError(`Tournament ${existing.tournamentId} not found`);
+    }
+    assertTournamentNotArchived(tournament.status);
+
+    const accessPinHash = await hashPassword(pin);
+    const updated = await this.courts.setAccessPinHash(courtId, accessPinHash);
+    if (!updated) {
+      throw new NotFoundError(`Court ${courtId} not found`);
+    }
+
+    await writeAuditLog(this.db, {
+      userId: actor.userId,
+      action: "court.set_access_pin",
+      entityType: "court",
+      entityId: courtId,
+      before: { hasAccessPin: existing.hasAccessPin },
+      after: { hasAccessPin: true },
+    });
+    return updated;
+  }
+
+  async clearAccessPin(actor: ActorContext, courtId: string): Promise<Court> {
+    assertCanManageCourtPin(actor.role);
+    const existing = await this.getById(courtId);
+    const tournament = await this.tournaments.findById(existing.tournamentId);
+    if (tournament) {
+      assertTournamentNotArchived(tournament.status);
+    }
+
+    const updated = await this.courts.setAccessPinHash(courtId, null);
+    if (!updated) {
+      throw new NotFoundError(`Court ${courtId} not found`);
+    }
+    await writeAuditLog(this.db, {
+      userId: actor.userId,
+      action: "court.clear_access_pin",
+      entityType: "court",
+      entityId: courtId,
+      before: { hasAccessPin: existing.hasAccessPin },
+      after: { hasAccessPin: false },
+    });
+    return updated;
+  }
+
+  async verifyAccessPin(courtId: string, pin: string): Promise<boolean> {
+    const row = await this.courts.findByIdWithPinHash(courtId);
+    if (!row?.accessPinHash || !row.active) {
+      return false;
+    }
+    if (!PIN_RE.test(pin)) {
+      return false;
+    }
+    return verifyPassword(row.accessPinHash, pin);
+  }
+
   async delete(actor: ActorContext, id: string): Promise<void> {
     assertCanPerform(actor.role, "setup");
     const existing = await this.getById(id);
@@ -135,9 +234,9 @@ export class CourtService {
       assertTournamentNotArchived(tournament.status);
     }
 
-    this.db.transaction((tx) => {
-      tx.delete(courts).where(eq(courts.id, id)).run();
-      writeAuditLog(tx, {
+    this.db.transaction(async (tx) => {
+      await tx.delete(courts).where(eq(courts.id, id))
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "court.delete",
         entityType: "court",
