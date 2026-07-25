@@ -20,8 +20,8 @@ const PAD_X = 20;
 const PAD_Y = 16;
 const VERT_GAP = 24;
 const ROUND_LABEL_H = 30;
-/** Extra vertical room under the main tree for the 3rd-place row. */
-const THIRD_GAP = 48;
+/** Vertical gap between the final and the 3rd-place match (same column). */
+const THIRD_GAP = 28;
 
 function cardLeft(columnIndex: number): number {
   return PAD_X + columnIndex * (CARD_W + COL_GAP);
@@ -285,15 +285,20 @@ export function MatchBracketOrgChart({
         .map((id) => allMain.find((m) => m.id === id))
         .filter((m): m is BracketMatchView => m != null);
 
-      const mainBottom =
-        nodes.length > 0
+      const finalRoundIndex = Math.max(0, rounds.length - 1);
+      const finalMatch = rounds[finalRoundIndex]?.matches[0];
+      const finalNode = finalMatch
+        ? nodes.find((n) => n.match.id === finalMatch.id)
+        : undefined;
+      const anchorBottom = finalNode
+        ? finalNode.y + CARD_H
+        : nodes.length > 0
           ? Math.max(...nodes.map((n) => n.y + CARD_H))
           : PAD_Y + ROUND_LABEL_H;
 
-      // Place 3rd-place under the final column (or last main round).
-      const finalRoundIndex = Math.max(0, rounds.length - 1);
+      // Place 3rd-place directly under the final (same column), not under the full tree.
       const thirdX = cardLeft(finalRoundIndex);
-      const thirdY = mainBottom + THIRD_GAP;
+      const thirdY = anchorBottom + THIRD_GAP;
 
       thirdNode = { match: third, x: thirdX, y: thirdY };
       nodes.push(thirdNode);
@@ -310,7 +315,7 @@ export function MatchBracketOrgChart({
         dashedEdges.push(
           dropPath(
             cardLeft(Math.max(0, finalRoundIndex - 1)) + CARD_W / 2,
-            mainBottom,
+            anchorBottom,
             thirdX + CARD_W / 2,
             thirdY,
           ),
