@@ -129,6 +129,8 @@ export function validateManualDraw(
         message: `Seed ${entry.seed} (${entry.id}) is in group ${actualGroupId}; expected ${expectedGroupId} under ${configuration.seedDistribution} distribution.`,
         severity: "warning",
         entityIds: [entry.id],
+        groupId: actualGroupId,
+        attributeId: expectedGroupId,
       });
     }
   }
@@ -199,6 +201,8 @@ function pushAttributeWarnings(
         message: `Group ${group.id} contains ${entryIds.length} entries from ${label} ${key}.`,
         severity: "warning",
         entityIds: entryIds,
+        groupId: group.id,
+        attributeId: key,
       });
     }
   }

@@ -66,6 +66,8 @@ export type DrawValidationIssue = {
   message: string;
   severity: "error" | "warning";
   entityIds?: string[];
+  groupId?: string;
+  attributeId?: string;
 };
 
 export type DrawValidation = {

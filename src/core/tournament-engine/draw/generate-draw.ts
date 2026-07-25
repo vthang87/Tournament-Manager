@@ -232,6 +232,8 @@ function collectSoftWarnings(
             code: "DRAW_SAME_CLUB",
             message: `Group ${bucket.group.id} contains ${entryIds.length} entries from club ${club} because no valid alternative allocation exists.`,
             entityIds: entryIds,
+            groupId: bucket.group.id,
+            attributeId: club,
           });
         }
       }
@@ -252,6 +254,8 @@ function collectSoftWarnings(
             code: "DRAW_SAME_TEAM",
             message: `Group ${bucket.group.id} contains ${entryIds.length} entries from team ${team}.`,
             entityIds: entryIds,
+            groupId: bucket.group.id,
+            attributeId: team,
           });
         }
       }
@@ -272,6 +276,8 @@ function collectSoftWarnings(
             code: "DRAW_SAME_REGION",
             message: `Group ${bucket.group.id} contains ${entryIds.length} entries from region ${region}.`,
             entityIds: entryIds,
+            groupId: bucket.group.id,
+            attributeId: region,
           });
         }
       }

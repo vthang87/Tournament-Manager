@@ -48,8 +48,10 @@ import {
 import {
   DrawCeremonyOverlay,
 } from "@/features/draw/components/draw-ceremony-overlay";
-import { ConfirmDrawModal } from "./confirm-draw-modal";
-import { cn } from "@/lib/utils";
+import {
+  localizeDrawIssue,
+  type DrawIssueView,
+} from "@/features/draw/lib/localize-draw-issue";
 
 export type DrawEntryView = {
   id: string;
@@ -66,11 +68,8 @@ export type DrawGroupView = {
   code: string;
 };
 
-type Issue = {
-  code: string;
-  message: string;
+type Issue = DrawIssueView & {
   severity: "error" | "warning";
-  entityIds?: string[];
 };
 
 function EntryRow({
@@ -399,6 +398,28 @@ function DrawBoardInner({
   const hardErrors = issues.filter((i) => i.severity === "error");
   const softWarnings = issues.filter((i) => i.severity === "warning");
 
+  const groupsById = useMemo(
+    () => new Map(groups.map((group) => [group.id, group])),
+    [groups],
+  );
+
+  const formatIssue = (issue: Issue) =>
+    localizeDrawIssue(issue, { groupsById, entriesById, t });
+
+  useEffect(() => {
+    if (results.length === 0) return;
+    let cancelled = false;
+    const allocation = allocationFromBuckets(groupIds, results);
+    void validateManualDrawAction(sessionId, allocation).then((result) => {
+      if (!cancelled && result.ok) {
+        setIssues(result.data.issues);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, results, groupIds]);
+
   function findGroupOfEntry(entryId: string, source: GroupBuckets) {
     for (const [groupId, ids] of Object.entries(source)) {
       if (ids.includes(entryId)) return groupId;
@@ -601,7 +622,9 @@ function DrawBoardInner({
           <p className="font-medium">{t("hardViolations")}</p>
           <ul className="mt-1 list-disc pl-5">
             {hardErrors.map((issue) => (
-              <li key={`${issue.code}-${issue.message}`}>{issue.message}</li>
+              <li key={`${issue.code}-${issue.groupId ?? ""}-${issue.entityIds?.join(",") ?? issue.message}`}>
+                {formatIssue(issue)}
+              </li>
             ))}
           </ul>
         </div>
@@ -612,7 +635,9 @@ function DrawBoardInner({
           <p className="font-medium">{t("softWarnings")}</p>
           <ul className="mt-1 list-disc pl-5">
             {softWarnings.map((issue) => (
-              <li key={`${issue.code}-${issue.message}`}>{issue.message}</li>
+              <li key={`${issue.code}-${issue.groupId ?? ""}-${issue.entityIds?.join(",") ?? issue.message}`}>
+                {formatIssue(issue)}
+              </li>
             ))}
           </ul>
         </div>
