@@ -833,7 +833,7 @@ export class MatchOpsService {
       metadata?: unknown;
     },
   ): Promise<MatchWithSets> {
-    const finished = this.db.transaction(async (tx) => {
+    const finished = await this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
       const completedAt = updatedAt;
       const startedAt = payload.startedAt ?? before.startedAt ?? updatedAt;
