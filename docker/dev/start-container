@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+
+cd /app
+
+if [ ! -f node_modules/.docker-installed ]; then
+  echo "Installing dependencies (first run)..."
+  pnpm install --frozen-lockfile
+  touch node_modules/.docker-installed
+fi
+
+if [ -n "${DATABASE_URL:-}" ]; then
+  sh /app/docker/dev/wait-for-postgres.sh
+fi
+
+exec pnpm dev --hostname 0.0.0.0 --port "${PORT:-3000}"

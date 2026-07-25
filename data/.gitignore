@@ -1,0 +1,3 @@
+# Keep the volume mount point in git; database files stay ignored.
+*
+!.gitignore
