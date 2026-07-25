@@ -207,7 +207,7 @@ Cần [Docker](https://docs.docker.com/get-docker/) và `make`.
 
 ```bash
 cp .env.docker.example .env
-make setup      # khởi động Postgres + app, migrate + seed
+make setup      # khởi động app + migrate + seed
 make links      # in URL local
 ```
 
@@ -230,16 +230,17 @@ make up
 
 ### 8.2. Chạy trực tiếp trên máy (pnpm)
 
-Cần Node 20+, pnpm, PostgreSQL đang chạy.
+Cần Node 20+, pnpm.
 
 ```bash
 cp .env.example .env
-# chỉnh DATABASE_URL trỏ tới PostgreSQL local
 pnpm install
 pnpm db:migrate
 pnpm db:seed
 pnpm dev
 ```
+
+SQLite mặc định: `./data/tournament-manager.db`
 
 ### 8.3. Tài khoản & link demo (sau seed)
 
@@ -268,7 +269,7 @@ pnpm dev
 | QR / link sai domain | Kiểm tra biến `APP_URL` trên server khớp URL công khai |
 | Muốn khóa máy trọng tài | Nút **Khóa** trên màn sân |
 | Import Excel lỗi | Xem preview — sửa dòng lỗi; không vượt 500 dòng / 2 MiB |
-| `make setup` lỗi DB | Chạy `docker compose -f docker-compose-dev.yaml ps`; đợi Postgres healthy rồi `make migrate` |
+| `make setup` lỗi DB | Chạy `make logs`; thử `make migrate` hoặc `make migrate-fresh` |
 
 ---
 
