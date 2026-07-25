@@ -103,9 +103,20 @@ so the pickleball technical cap is set to 99.
 
 Credentials remain `admin` / `admin123`; all demo court links use PIN `1234`.
 
-## User guide
+## User guide website
 
-Vietnamese ops / referee guide (court PIN scoring, match day flow): [`docs/huong-dan-su-dung.md`](docs/huong-dan-su-dung.md).
+The Vietnamese guide is built with Material for MkDocs. Source pages live in
+[`docs/hdsd`](docs/hdsd/index.md).
+
+```bash
+python3 -m pip install -r requirements-docs.txt
+mkdocs serve
+mkdocs build --strict
+```
+
+Local preview: [http://127.0.0.1:8000](http://127.0.0.1:8000)
+
+GitHub Pages: [https://vthang87.github.io/Tournament-Manager/](https://vthang87.github.io/Tournament-Manager/)
 
 ## Excel import / export
 

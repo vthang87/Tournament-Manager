@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">Placeholder trang giải công khai</title><desc id="desc">Ảnh demo sẽ được bổ sung sau.</desc>
+  <rect width="1280" height="720" fill="#f1f5f9"/><rect x="40" y="40" width="1200" height="640" rx="28" fill="#fff" stroke="#cbd5e1" stroke-width="3"/>
+  <circle cx="640" cy="280" r="52" fill="#0f172a"/><text x="640" y="296" text-anchor="middle" font-family="Arial,sans-serif" font-size="38" font-weight="700" fill="#34d399">TM</text>
+  <text x="640" y="380" text-anchor="middle" font-family="Arial,sans-serif" font-size="34" font-weight="700" fill="#0f172a">IMG-23 · Trang giải công khai</text>
+  <text x="640" y="430" text-anchor="middle" font-family="Arial,sans-serif" font-size="22" fill="#64748b">Ảnh demo sẽ được bổ sung</text>
+</svg>
