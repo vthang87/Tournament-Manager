@@ -3,6 +3,7 @@ import type { MatchRecord } from "@/core/domain";
 import {
   DEMO_SCENARIOS,
   normalScoreForMatch,
+  playerName,
 } from "./seed-demo-scenarios";
 
 function matchWithRule(
@@ -82,5 +83,15 @@ describe("demo scenario definitions", () => {
       { setNumber: 2, scoreA: 5, scoreB: 11 },
       { setNumber: 3, scoreA: 11, scoreB: 4 },
     ]);
+  });
+
+  it("cycles demo player names for all 64 roster slots without undefined", () => {
+    for (let index = 0; index < 64; index += 1) {
+      for (const sport of ["badminton", "pickleball"] as const) {
+        const name = playerName(sport, index);
+        expect(name).not.toContain("undefined");
+        expect(name.trim().length).toBeGreaterThan(0);
+      }
+    }
   });
 });

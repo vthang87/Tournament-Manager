@@ -354,11 +354,15 @@ function entryId(prefix: string, index: number): string {
   return `${prefix}-entry-${String(index + 1).padStart(2, "0")}`;
 }
 
-function playerName(sport: DemoSport, index: number): string {
+export function playerName(sport: DemoSport, index: number): string {
   const firstIndex =
-    sport === "pickleball" ? (index * 3 + 7) % FIRST_NAMES.length : index;
+    sport === "pickleball"
+      ? (index * 3 + 7) % FIRST_NAMES.length
+      : index % FIRST_NAMES.length;
   const lastIndex =
-    sport === "pickleball" ? (index + 5) % LAST_NAMES.length : index;
+    sport === "pickleball"
+      ? (index + 5) % LAST_NAMES.length
+      : index % LAST_NAMES.length;
   const suffix = index >= 32 ? ` ${Math.floor(index / 32) + 1}` : "";
   return `${LAST_NAMES[lastIndex]} ${FIRST_NAMES[firstIndex]}${suffix}`;
 }
@@ -658,12 +662,12 @@ async function upsertScenarioBase(
     const id = entryId(definition.prefix, index);
     const firstPlayerId = playerId(definition.sport, index * 2);
     const secondPlayerId = playerId(definition.sport, index * 2 + 1);
-    const firstName = playerName(definition.sport, index * 2);
-    const secondName = playerName(definition.sport, index * 2 + 1);
+    const playerAName = playerName(definition.sport, index * 2);
+    const playerBName = playerName(definition.sport, index * 2 + 1);
     const seed = index < 8 ? index + 1 : null;
     const values = {
       eventId: ids.event,
-      displayName: `${firstName} / ${secondName}${seed ? ` [S${seed}]` : ""}`,
+      displayName: `${playerAName} / ${playerBName}${seed ? ` [S${seed}]` : ""}`,
       seed,
       ranking: index + 1,
       clubId: clubId(definition.sport, index % sportClubs.length),
