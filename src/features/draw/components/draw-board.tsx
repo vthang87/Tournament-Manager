@@ -184,6 +184,48 @@ function SortableEntry({
   );
 }
 
+function StaticGroupColumn({
+  group,
+  entryIds,
+  entriesById,
+  capacity,
+  dropHint,
+}: {
+  group: DrawGroupView;
+  entryIds: string[];
+  entriesById: Map<string, DrawEntryView>;
+  capacity: number;
+  dropHint: string;
+}) {
+  const overCapacity = entryIds.length > capacity;
+
+  return (
+    <Card className={cn(overCapacity && "border-red-300")}>
+      <CardHeader className="p-4 pb-2">
+        <CardTitle className="text-sm">{group.name}</CardTitle>
+        <CardDescription>
+          {entryIds.length}/{capacity}
+          {overCapacity ? " · over capacity" : ""}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-4 pt-0">
+        <div className="min-h-[8rem] space-y-2 rounded-md border border-dashed border-slate-200 bg-slate-50/60 p-2">
+          {entryIds.map((id) => {
+            const entry = entriesById.get(id);
+            if (!entry) return null;
+            return <EntryRow key={id} entry={entry} />;
+          })}
+          {entryIds.length === 0 ? (
+            <p className="px-1 py-6 text-center text-xs text-slate-400">
+              {dropHint}
+            </p>
+          ) : null}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function GroupColumn({
   group,
   entryIds,
@@ -193,6 +235,7 @@ function GroupColumn({
   groups,
   revealed,
   onMobileMove,
+  dropHint,
 }: {
   group: DrawGroupView;
   entryIds: string[];
@@ -202,6 +245,7 @@ function GroupColumn({
   groups: DrawGroupView[];
   revealed: boolean;
   onMobileMove: (entryId: string, toGroupId: string) => void;
+  dropHint: string;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: group.id });
   const overCapacity = entryIds.length > capacity;
@@ -249,7 +293,7 @@ function GroupColumn({
           </SortableContext>
           {entryIds.length === 0 ? (
             <p className="px-1 py-6 text-center text-xs text-slate-400">
-              Drop entries here
+              {dropHint}
             </p>
           ) : null}
         </div>
@@ -289,7 +333,7 @@ export function DrawBoard({
     () => new Map(entries.map((e) => [e.id, e])),
     [entries],
   );
-  const groupIds = groups.map((g) => g.id);
+  const groupIds = useMemo(() => groups.map((g) => g.id), [groups]);
   const resultsKey = results
     .map((r) => `${r.groupId}:${r.entryId}:${r.position}`)
     .join("|");
@@ -355,12 +399,17 @@ function DrawBoardInner({
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [interactiveReady, setInteractiveReady] = useState(false);
   const [revealedCount, setRevealedCount] = useState(0);
   const [ceremonyOpen, setCeremonyOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const readOnly = !canEdit || sessionStatus !== "DRAFT";
   const locked = sessionStatus === "LOCKED" || sessionStatus === "CONFIRMED";
+
+  useEffect(() => {
+    setInteractiveReady(true);
+  }, []);
 
   const ceremonyPlacements: CeremonyPlacement[] = useMemo(
     () =>
@@ -380,6 +429,7 @@ function DrawBoardInner({
   );
 
   useEffect(() => {
+    if (!interactiveReady) return;
     const timers: number[] = [];
     groups.forEach((_, index) => {
       timers.push(
@@ -389,9 +439,9 @@ function DrawBoardInner({
       );
     });
     return () => {
-      for (const t of timers) window.clearTimeout(t);
+      for (const timer of timers) window.clearTimeout(timer);
     };
-  }, [groups]);
+  }, [groups, interactiveReady]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -411,7 +461,9 @@ function DrawBoardInner({
   useEffect(() => {
     if (results.length === 0) return;
     let cancelled = false;
-    const allocation = allocationFromBuckets(groupIds, results);
+    const allocation = allocationFromBuckets(
+      bucketsFromResults(groupIds, results),
+    );
     void validateManualDrawAction(sessionId, allocation).then((result) => {
       if (!cancelled && result.ok) {
         setIssues(result.data.issues);
@@ -658,6 +710,7 @@ function DrawBoardInner({
         <p className="text-xs text-slate-500 md:hidden">{t("mobileHint")}</p>
       ) : null}
 
+      {interactiveReady ? (
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -676,6 +729,7 @@ function DrawBoardInner({
               groups={groups}
               revealed={index < revealedCount}
               onMobileMove={onMobileMove}
+              dropHint={t("dropHere")}
             />
           ))}
         </div>
@@ -683,6 +737,20 @@ function DrawBoardInner({
           {activeEntry ? <EntryRow entry={activeEntry} /> : null}
         </DragOverlay>
       </DndContext>
+    ) : (
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {groups.map((group) => (
+          <StaticGroupColumn
+            key={group.id}
+            group={group}
+            entryIds={buckets[group.id] ?? []}
+            entriesById={entriesById}
+            capacity={capacityPerGroup}
+            dropHint={t("dropHere")}
+          />
+        ))}
+      </div>
+    )}
 
       <ConfirmDrawModal
         open={confirmOpen}
