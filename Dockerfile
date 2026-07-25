@@ -12,14 +12,13 @@ RUN corepack enable && corepack prepare pnpm@10.20.0 --activate
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV DATABASE_URL=postgresql://tournament:tournament@postgres:5432/tournament_manager
-RUN pnpm db:generate && pnpm build
+# Build does not need a live database; migrations run at container start.
+RUN pnpm build
 
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV DATABASE_URL=postgresql://tournament:tournament@postgres:5432/tournament_manager
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
@@ -36,10 +35,11 @@ COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/node_modules ./node_modules
 COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY docker/wait-for-postgres.sh /sh/wait-for-postgres.sh
+RUN chmod +x /entrypoint.sh /sh/wait-for-postgres.sh
 
 EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD curl -fsS http://127.0.0.1:3000/api/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD curl -fsS "http://127.0.0.1:${PORT}/api/health" || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]
