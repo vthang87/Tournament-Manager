@@ -29,6 +29,27 @@ import {
 import { eventStatusKey } from "@/i18n/status-labels";
 import { getCurrentUser } from "@/lib/auth/require-auth";
 import { canPerform } from "@/lib/auth/policies";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ tournamentId: string; eventId: string }>;
+}) {
+  const { tournamentId, eventId } = await params;
+  const t = await getTranslations("events");
+  const db = getDb();
+  try {
+    const tournament = await new TournamentService(db).getById(tournamentId);
+    const event = await new EventService(db).getById(eventId);
+    if (event.tournamentId !== tournamentId) {
+      return pageTitle(t("title"));
+    }
+    return pageTitle(event.name, tournament.name);
+  } catch {
+    return pageTitle(t("title"));
+  }
+}
 
 export const dynamic = "force-dynamic";
 

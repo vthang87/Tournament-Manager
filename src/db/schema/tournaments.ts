@@ -1,6 +1,6 @@
-import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { boolean, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
 
-export const tournaments = sqliteTable(
+export const tournaments = pgTable(
   "tournaments",
   {
     id: text("id").primaryKey(),
@@ -29,7 +29,7 @@ export const tournaments = sqliteTable(
   (table) => [uniqueIndex("tournaments_slug_uidx").on(table.slug)],
 );
 
-export const tournamentEvents = sqliteTable("tournament_events", {
+export const tournamentEvents = pgTable("tournament_events", {
   id: text("id").primaryKey(),
   tournamentId: text("tournament_id")
     .notNull()
@@ -54,16 +54,14 @@ export const tournamentEvents = sqliteTable("tournament_events", {
     .default("SETUP"),
   // App-enforced FK to match_rules.id (avoids circular schema deps with match_rules.event_id).
   defaultMatchRuleId: text("default_match_rule_id"),
-  thirdPlaceMatchEnabled: integer("third_place_match_enabled", {
-    mode: "boolean",
-  })
+  thirdPlaceMatchEnabled: boolean("third_place_match_enabled")
     .notNull()
     .default(false),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
 
-export const courts = sqliteTable(
+export const courts = pgTable(
   "courts",
   {
     id: text("id").primaryKey(),
@@ -72,7 +70,9 @@ export const courts = sqliteTable(
       .references(() => tournaments.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     code: text("code").notNull(),
-    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    active: boolean("active").notNull().default(true),
+    /** Argon2 hash of 4–6 digit referee PIN; null = court scoring link disabled. */
+    accessPinHash: text("access_pin_hash"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },

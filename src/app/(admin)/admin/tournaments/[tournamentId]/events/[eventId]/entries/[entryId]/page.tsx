@@ -12,6 +12,31 @@ import { getDb } from "@/db/client";
 import { updateEntryAction } from "@/features/entries/actions";
 import { EntryRegistrationForm } from "@/features/entries/components/entry-registration-form";
 import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{
+    tournamentId: string;
+    eventId: string;
+    entryId: string;
+  }>;
+}) {
+  const { tournamentId, eventId, entryId } = await params;
+  const t = await getTranslations("entries");
+  const db = getDb();
+  try {
+    await new TournamentService(db).getById(tournamentId);
+    const event = await new EventService(db).getById(eventId);
+    await new EntryService(db).getById(entryId);
+    const sectionTitle =
+      event.type === "DOUBLES" ? t("editPair") : t("editEntry");
+    return pageTitle(sectionTitle, event.name);
+  } catch {
+    return pageTitle(t("title"));
+  }
+}
 
 export const dynamic = "force-dynamic";
 

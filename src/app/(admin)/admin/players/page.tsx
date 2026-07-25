@@ -12,6 +12,12 @@ import { ClubService, PlayerService } from "@/application/services";
 import { getDb } from "@/db/client";
 import { getCurrentUser } from "@/lib/auth/require-auth";
 import { canPerform } from "@/lib/auth/policies";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata() {
+  const t = await getTranslations("players");
+  return pageTitle(t("title"));
+}
 
 export const dynamic = "force-dynamic";
 

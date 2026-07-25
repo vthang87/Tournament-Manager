@@ -5,6 +5,7 @@ import {
   EntryService,
   EventService,
   TournamentService,
+  CourtService,
   createMatchOpsService,
 } from "@/application/services";
 import {
@@ -15,13 +16,18 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { DrizzleGroupRepository } from "@/db/repositories/schedule-repository";
+import { DrizzleMatchRepository } from "@/db/repositories/match-repository";
 import { getDb } from "@/db/client";
 import {
+  callToCourtAction,
   cancelMatchAction,
+  clearWarmupAction,
   correctScoreAction,
   enterScoreAction,
   resolveSpecialAction,
+  saveLiveScoreAction,
   startMatchAction,
+  swapSidesAction,
 } from "@/features/matches/actions";
 import { MatchOpsPanel } from "@/features/matches/match-ops-panel";
 import {
@@ -33,6 +39,37 @@ import {
 import { matchStatusKey } from "@/i18n/status-labels";
 import { canPerform } from "@/lib/auth/policies";
 import { getCurrentUser } from "@/lib/auth/require-auth";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{
+    tournamentId: string;
+    eventId: string;
+    matchId: string;
+  }>;
+}) {
+  const { tournamentId, eventId, matchId } = await params;
+  const t = await getTranslations("matches");
+  const tc = await getTranslations("common");
+  const db = getDb();
+  try {
+    await new TournamentService(db).getById(tournamentId);
+    const event = await new EventService(db).getById(eventId);
+    const match = await createMatchOpsService(db).getById(matchId);
+    if (event.tournamentId !== tournamentId || match.eventId !== eventId) {
+      return pageTitle(t("title"), event.name);
+    }
+    const entries = await new EntryService(db).listByEvent(eventId);
+    const labels = new Map(entries.map((e) => [e.id, e.displayName]));
+    const labelA = entryLabel(match.entryAId, labels);
+    const labelB = entryLabel(match.entryBId, labels);
+    return pageTitle(`${labelA} ${tc("vs")} ${labelB}`, t("title"));
+  } catch {
+    return pageTitle(t("title"));
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -67,9 +104,19 @@ export default async function MatchDetailPage({
   }
 
   const entries = await new EntryService(db).listByEvent(eventId);
+  const courts = await new CourtService(db).listByTournament(tournamentId);
+  const busyCourtIds = new Set(
+    await new DrizzleMatchRepository(db).listBusyCourtIdsForTournament(
+      tournamentId,
+      match.id,
+    ),
+  );
   const labels = new Map(entries.map((e) => [e.id, e.displayName]));
   const labelA = entryLabel(match.entryAId, labels);
   const labelB = entryLabel(match.entryBId, labels);
+  const court = match.courtId
+    ? (courts.find((c) => c.id === match.courtId) ?? null)
+    : null;
 
   let groupName: string | null = null;
   if (match.groupId) {
@@ -81,7 +128,7 @@ export default async function MatchDetailPage({
   let rule;
   try {
     rule = parseRuleSnapshot(match.ruleSnapshotJson);
-    ruleSummary = formatRuleSummary(rule);
+    ruleSummary = formatRuleSummary(rule, t);
   } catch {
     rule = null;
   }
@@ -94,7 +141,7 @@ export default async function MatchDetailPage({
   const bothSides = Boolean(match.entryAId && match.entryBId);
 
   return (
-    <div className="mx-auto max-w-lg space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <Link
           href={`${basePath}/matches`}
@@ -123,6 +170,14 @@ export default async function MatchDetailPage({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
+          <p>
+            <span className="text-slate-500">{t("courtLabel")}</span>
+            <span className="font-medium text-slate-800">
+              {court
+                ? t("courtOption", { name: court.name, code: court.code })
+                : t("courtUnassigned")}
+            </span>
+          </p>
           <p>
             <span className="text-slate-500">{t("scoreLabel")}</span>
             <span className="tabular-nums font-medium">
@@ -154,16 +209,30 @@ export default async function MatchDetailPage({
           entryBId={match.entryBId!}
           labelA={labelA}
           labelB={labelB}
+          courtId={match.courtId}
+          courts={courts
+            .filter((c) => c.active || c.id === match.courtId)
+            .map((c) => ({
+              id: c.id,
+              name: c.name,
+              code: c.code,
+              busy: busyCourtIds.has(c.id),
+            }))}
           rule={rule}
           canScore={canScore}
           canCorrect={canCorrect}
+          warmupUntil={match.warmupUntil}
           initialSets={match.sets.map((s) => ({
             setNumber: s.setNumber,
             scoreA: s.scoreA,
             scoreB: s.scoreB,
           }))}
           startAction={startMatchAction}
+          callToCourtAction={callToCourtAction}
+          clearWarmupAction={clearWarmupAction}
+          swapSidesAction={swapSidesAction}
           enterScoreAction={enterScoreAction}
+          saveLiveScoreAction={saveLiveScoreAction}
           resolveSpecialAction={resolveSpecialAction}
           cancelMatchAction={cancelMatchAction}
           correctScoreAction={correctScoreAction}

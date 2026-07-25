@@ -53,7 +53,7 @@ export class TournamentService {
       throw new ConflictError(`Slug "${input.slug}" is already in use`);
     }
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const now = nowIso();
       const row = {
         id: createId(),
@@ -68,12 +68,12 @@ export class TournamentService {
         createdAt: now,
         updatedAt: now,
       };
-      tx.insert(tournaments).values(row).run();
+      await tx.insert(tournaments).values(row)
       const created: Tournament = {
         ...row,
         status: row.status,
       };
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "tournament.create",
         entityType: "tournament",
@@ -104,7 +104,7 @@ export class TournamentService {
       }
     }
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const now = nowIso();
       const next = {
         name: input.name ?? existing.name,
@@ -121,9 +121,9 @@ export class TournamentService {
         endDate: input.endDate !== undefined ? input.endDate : existing.endDate,
         updatedAt: now,
       };
-      tx.update(tournaments).set(next).where(eq(tournaments.id, id)).run();
+      await tx.update(tournaments).set(next).where(eq(tournaments.id, id))
       const updated: Tournament = { ...existing, ...next };
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "tournament.update",
         entityType: "tournament",
@@ -145,14 +145,14 @@ export class TournamentService {
     const existing = await this.getById(id);
     assertTournamentTransition(existing.status, toStatus);
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
-      tx.update(tournaments)
+      await tx.update(tournaments)
         .set({ status: toStatus, updatedAt })
         .where(eq(tournaments.id, id))
-        .run();
+        
       const updated: Tournament = { ...existing, status: toStatus, updatedAt };
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: `tournament.${toStatus.toLowerCase()}`,
         entityType: "tournament",

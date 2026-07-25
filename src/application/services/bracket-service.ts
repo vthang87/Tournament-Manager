@@ -155,8 +155,8 @@ export class BracketService {
       rankingCriteriaJson,
     });
 
-    this.db.transaction((tx) => {
-      writeAuditLog(tx, {
+    await this.db.transaction(async (tx) => {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "qualification_rule.create",
         entityType: "qualification_rule",
@@ -308,7 +308,7 @@ export class BracketService {
     }
 
     const created: MatchRecord[] = [];
-    this.db.transaction((tx) => {
+    await this.db.transaction(async (tx) => {
       const now = nowIso();
       for (const em of engineBracket.matches) {
         const id = idMap.get(em.id)!;
@@ -336,6 +336,7 @@ export class BracketService {
           courtId: null as string | null,
           scheduledAt: null as string | null,
           estimatedDurationMinutes: null as number | null,
+          warmupUntil: null as string | null,
           startedAt: null as string | null,
           completedAt: isByeComplete ? now : null,
           nextMatchId: nextId,
@@ -346,11 +347,11 @@ export class BracketService {
           createdAt: now,
           updatedAt: now,
         };
-        tx.insert(matchesTable).values(row).run();
+        await tx.insert(matchesTable).values(row)
         created.push(row);
       }
 
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "bracket.generate",
         entityType: "stage",
@@ -463,7 +464,7 @@ export class BracketService {
     );
 
     const now = nowIso();
-    this.db.transaction((tx) => {
+    await this.db.transaction(async (tx) => {
       for (const em of update.bracket.matches) {
         const dbMatch = byEngineId.get(em.id);
         if (!dbMatch) {
@@ -481,7 +482,7 @@ export class BracketService {
           !dbMatch.winnerEntryId &&
           (em.slotA.isBye || em.slotB.isBye);
 
-        tx.update(matchesTable)
+        await tx.update(matchesTable)
           .set({
             entryAId: em.slotA.entryId,
             entryBId: em.slotB.entryId,
@@ -491,10 +492,10 @@ export class BracketService {
             updatedAt: now,
           })
           .where(eq(matchesTable.id, dbMatch.id))
-          .run();
+          
       }
 
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "bracket.advance",
         entityType: "match",
@@ -525,8 +526,8 @@ export class BracketService {
     const before = await this.matches.listKnockoutByStage(stage.id);
     const deleted = await this.matches.deleteKnockoutByStage(stage.id);
 
-    this.db.transaction((tx) => {
-      writeAuditLog(tx, {
+    await this.db.transaction(async (tx) => {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "bracket.admin_reset",
         entityType: "stage",
@@ -647,8 +648,8 @@ export class BracketService {
       throw new NotFoundError(`Stage ${stageId} not found`);
     }
 
-    this.db.transaction((tx) => {
-      writeAuditLog(tx, {
+    await this.db.transaction(async (tx) => {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "stage.completed",
         entityType: "stage",

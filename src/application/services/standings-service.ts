@@ -94,8 +94,8 @@ export class StandingsService {
       specialPolicyJson,
     });
 
-    this.db.transaction((tx) => {
-      writeAuditLog(tx, {
+    this.db.transaction(async (tx) => {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "standing_rule.create",
         entityType: "standing_rule",

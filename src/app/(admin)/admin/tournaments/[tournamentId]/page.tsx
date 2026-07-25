@@ -23,6 +23,22 @@ import {
   eventStatusKey,
   tournamentStatusKey,
 } from "@/i18n/status-labels";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ tournamentId: string }>;
+}) {
+  const { tournamentId } = await params;
+  const t = await getTranslations("tournaments");
+  try {
+    const tournament = await new TournamentService(getDb()).getById(tournamentId);
+    return pageTitle(tournament.name);
+  } catch {
+    return pageTitle(t("title"));
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -167,7 +183,13 @@ export default async function TournamentDetailPage({
           </CardHeader>
           <CardContent className="space-y-2">
             <Link
-              href={`/admin/tournaments/${tournamentId}/live`}
+              href={`/admin/tournaments/${tournamentId}/org-chart`}
+              className="block text-sm font-medium text-slate-900 underline"
+            >
+              {t("orgChart")}
+            </Link>
+            <Link
+              href={`/t/${tournament.slug}/live`}
               className="block text-sm font-medium text-slate-900 underline"
             >
               {t("tvLiveBoard")}

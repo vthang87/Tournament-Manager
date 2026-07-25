@@ -1,36 +1,27 @@
-import fs from "node:fs";
-import path from "node:path";
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 import * as schema from "./schema";
 
-function resolveDatabasePath(): string {
+const DEFAULT_DATABASE_URL =
+  "postgresql://tournament:tournament@192.168.0.17:5432/tournament_manager";
+
+function resolveDatabaseUrl(): string {
   const configured = process.env.DATABASE_URL;
   if (configured && configured.length > 0) {
-    return configured.startsWith("file:")
-      ? configured.slice("file:".length)
-      : configured;
+    return configured;
   }
-  return path.join(process.cwd(), "data", "tournament-manager.db");
+  return DEFAULT_DATABASE_URL;
 }
 
-export function createSqliteConnection(databasePath = resolveDatabasePath()) {
-  const directory = path.dirname(databasePath);
-  fs.mkdirSync(directory, { recursive: true });
-
-  const sqlite = new Database(databasePath);
-  sqlite.pragma("journal_mode = WAL");
-  sqlite.pragma("foreign_keys = ON");
-  sqlite.pragma("busy_timeout = 5000");
-
-  return sqlite;
+export function createPool(connectionString = resolveDatabaseUrl()): Pool {
+  return new Pool({ connectionString });
 }
 
-export function createDb(databasePath?: string) {
-  const sqlite = createSqliteConnection(databasePath);
+export function createDb(connectionString?: string) {
+  const pool = createPool(connectionString);
   return {
-    sqlite,
-    db: drizzle(sqlite, { schema }),
+    pool,
+    db: drizzle(pool, { schema }),
   };
 }
 
@@ -47,9 +38,16 @@ export function getDb(): AppDatabase {
   return globalForDb.__tmDb.db;
 }
 
-export function getSqlite(): Database.Database {
+export function getPool(): Pool {
   if (!globalForDb.__tmDb) {
     globalForDb.__tmDb = createDb();
   }
-  return globalForDb.__tmDb.sqlite;
+  return globalForDb.__tmDb.pool;
+}
+
+export async function closeDb(): Promise<void> {
+  if (globalForDb.__tmDb) {
+    await globalForDb.__tmDb.pool.end();
+    globalForDb.__tmDb = undefined;
+  }
 }

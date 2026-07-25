@@ -51,7 +51,7 @@ export class PlayerService {
       }
     }
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const now = nowIso();
       const row = {
         id: createId(),
@@ -67,8 +67,8 @@ export class PlayerService {
         createdAt: now,
         updatedAt: now,
       };
-      tx.insert(players).values(row).run();
-      writeAuditLog(tx, {
+      await tx.insert(players).values(row)
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "player.create",
         entityType: "player",
@@ -95,7 +95,7 @@ export class PlayerService {
       }
     }
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
       const next = {
         name: input.name ?? existing.name,
@@ -112,9 +112,9 @@ export class PlayerService {
           input.ranking !== undefined ? input.ranking : existing.ranking,
         updatedAt,
       };
-      tx.update(players).set(next).where(eq(players.id, id)).run();
+      await tx.update(players).set(next).where(eq(players.id, id))
       const updated = { ...existing, ...next };
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "player.update",
         entityType: "player",
@@ -129,9 +129,9 @@ export class PlayerService {
   async delete(actor: ActorContext, id: string): Promise<void> {
     assertCanPerform(actor.role, "import");
     const existing = await this.getById(id);
-    this.db.transaction((tx) => {
-      tx.delete(players).where(eq(players.id, id)).run();
-      writeAuditLog(tx, {
+    this.db.transaction(async (tx) => {
+      await tx.delete(players).where(eq(players.id, id))
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "player.delete",
         entityType: "player",

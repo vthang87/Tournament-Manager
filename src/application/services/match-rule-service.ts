@@ -107,7 +107,7 @@ export class MatchRuleService {
     };
     validateScoringShape(scoring);
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const now = nowIso();
       const row = {
         id: createId(),
@@ -117,8 +117,8 @@ export class MatchRuleService {
         createdAt: now,
         updatedAt: now,
       };
-      tx.insert(matchRules).values(row).run();
-      writeAuditLog(tx, {
+      await tx.insert(matchRules).values(row)
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "match_rule.create",
         entityType: "match_rule",
@@ -168,16 +168,16 @@ export class MatchRuleService {
     };
     validateScoringShape(scoring);
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
       const next = {
         name: input.name ?? existing.name,
         ...scoring,
         updatedAt,
       };
-      tx.update(matchRules).set(next).where(eq(matchRules.id, id)).run();
+      await tx.update(matchRules).set(next).where(eq(matchRules.id, id))
       const updated = { ...existing, ...next };
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "match_rule.update",
         entityType: "match_rule",
@@ -195,14 +195,14 @@ export class MatchRuleService {
     await this.assertEventSetup(existing.eventId);
 
     // Clear references that would block delete.
-    this.db.transaction((tx) => {
-      tx.update(tournamentEvents)
+    this.db.transaction(async (tx) => {
+      await tx.update(tournamentEvents)
         .set({ defaultMatchRuleId: null, updatedAt: nowIso() })
         .where(eq(tournamentEvents.defaultMatchRuleId, id))
-        .run();
-      tx.delete(stageRules).where(eq(stageRules.matchRuleId, id)).run();
-      tx.delete(matchRules).where(eq(matchRules.id, id)).run();
-      writeAuditLog(tx, {
+        
+      await tx.delete(stageRules).where(eq(stageRules.matchRuleId, id))
+      await tx.delete(matchRules).where(eq(matchRules.id, id))
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "match_rule.delete",
         entityType: "match_rule",

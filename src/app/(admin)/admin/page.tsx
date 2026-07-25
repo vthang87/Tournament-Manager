@@ -23,6 +23,12 @@ import {
   stageStatusKey,
   tournamentStatusKey,
 } from "@/i18n/status-labels";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata() {
+  const t = await getTranslations("dashboard");
+  return pageTitle(t("title"));
+}
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +75,7 @@ export default async function AdminDashboardPage() {
                     {tc("admin")}
                   </Link>
                   <Link
-                    href={`/admin/tournaments/${s.tournamentId}/live`}
+                    href={`/t/${s.slug}/live`}
                     className="underline-offset-4 hover:underline"
                   >
                     {tt("liveBoard")}

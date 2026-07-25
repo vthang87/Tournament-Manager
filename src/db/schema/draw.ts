@@ -1,16 +1,16 @@
 import {
   integer,
+  pgTable,
   primaryKey,
-  sqliteTable,
   text,
   uniqueIndex,
-} from "drizzle-orm/sqlite-core";
+} from "drizzle-orm/pg-core";
 import { users } from "./identity";
 import { entries } from "./participants";
 import { stages } from "./rules";
 import { tournamentEvents } from "./tournaments";
 
-export const drawSessions = sqliteTable("draw_sessions", {
+export const drawSessions = pgTable("draw_sessions", {
   id: text("id").primaryKey(),
   eventId: text("event_id")
     .notNull()
@@ -32,7 +32,7 @@ export const drawSessions = sqliteTable("draw_sessions", {
   confirmedAt: text("confirmed_at"),
 });
 
-export const groups = sqliteTable(
+export const groups = pgTable(
   "groups",
   {
     id: text("id").primaryKey(),
@@ -51,7 +51,7 @@ export const groups = sqliteTable(
   ],
 );
 
-export const drawResults = sqliteTable(
+export const drawResults = pgTable(
   "draw_results",
   {
     drawSessionId: text("draw_session_id")
@@ -75,7 +75,7 @@ export const drawResults = sqliteTable(
   ],
 );
 
-export const groupEntries = sqliteTable(
+export const groupEntries = pgTable(
   "group_entries",
   {
     groupId: text("group_id")

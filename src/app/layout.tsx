@@ -17,7 +17,10 @@ const geistMono = Geist_Mono({
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("meta");
   return {
-    title: t("appName"),
+    title: {
+      default: t("appName"),
+      template: `%s · ${t("appName")}`,
+    },
     description: t("tagline"),
   };
 }
@@ -33,7 +36,7 @@ export default async function RootLayout({
   return (
     <html
       lang={locale}
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full scroll-smooth antialiased`}
     >
       <body className="min-h-full bg-slate-50 font-sans text-slate-900">
         <NextIntlClientProvider locale={locale} messages={messages}>

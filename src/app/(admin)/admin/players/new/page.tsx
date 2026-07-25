@@ -8,6 +8,12 @@ import { ClubService } from "@/application/services";
 import { getDb } from "@/db/client";
 import { createPlayerAction } from "@/features/participants/actions";
 import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata() {
+  const t = await getTranslations("players");
+  return pageTitle(t("new"));
+}
 
 export const dynamic = "force-dynamic";
 

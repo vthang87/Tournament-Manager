@@ -1,19 +1,37 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tournament
+      POSTGRES_PASSWORD: tournament
+      POSTGRES_DB: tournament_manager
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tournament -d tournament_manager"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
   app:
     build: .
     ports:
       - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
-      DATABASE_URL: /data/tournament-manager.db
+      DATABASE_URL: postgresql://tournament:tournament@postgres:5432/tournament_manager
       APP_URL: http://localhost:3000
       SESSION_SECRET: docker-dev-only-change-me-long-secret
       RUN_SEED_ON_START: "true"
       SEED_ADMIN_USERNAME: admin
       SEED_ADMIN_PASSWORD: admin123
       SEED_ADMIN_DISPLAY_NAME: Local Admin
-    volumes:
-      - tm_data:/data
     restart: unless-stopped
 
 volumes:
-  tm_data:
+  pg_data:

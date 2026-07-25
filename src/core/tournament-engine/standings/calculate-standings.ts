@@ -118,12 +118,10 @@ function applyCompletedMatch(
   }
 
   // Special resolutions.
-  const includePlayed =
-    resolution === "RETIREMENT" &&
-    "includePlayedSets" in policy &&
-    policy.includePlayedSets === true;
+  const includePlayed = policy.includePlayedSets === true;
+  const hasScoredSets = match.sets.length > 0;
 
-  if (includePlayed) {
+  if (includePlayed && hasScoredSets) {
     for (const set of match.sets) {
       entryA.pointsWon += set.scoreA;
       entryA.pointsLost += set.scoreB;
@@ -138,6 +136,8 @@ function applyCompletedMatch(
         entryA.setsLost += 1;
       }
     }
+    // Prefer actual set scores over award pads (avoids double-counting).
+    return;
   }
 
   winner.setsWon += policy.setsWon;

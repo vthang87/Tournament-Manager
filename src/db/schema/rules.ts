@@ -1,12 +1,13 @@
 import {
+  boolean,
   integer,
-  sqliteTable,
+  pgTable,
   text,
   uniqueIndex,
-} from "drizzle-orm/sqlite-core";
+} from "drizzle-orm/pg-core";
 import { tournamentEvents } from "./tournaments";
 
-export const matchRules = sqliteTable("match_rules", {
+export const matchRules = pgTable("match_rules", {
   id: text("id").primaryKey(),
   eventId: text("event_id")
     .notNull()
@@ -16,21 +17,17 @@ export const matchRules = sqliteTable("match_rules", {
   pointsToWin: integer("points_to_win").notNull(),
   winBy: integer("win_by").notNull(),
   maxPoints: integer("max_points").notNull(),
-  deuceEnabled: integer("deuce_enabled", { mode: "boolean" })
-    .notNull()
-    .default(true),
+  deuceEnabled: boolean("deuce_enabled").notNull().default(true),
   decidingSetPoints: integer("deciding_set_points"),
   decidingSetWinBy: integer("deciding_set_win_by"),
   decidingSetMaxPoints: integer("deciding_set_max_points"),
-  changeEndsEnabled: integer("change_ends_enabled", { mode: "boolean" })
-    .notNull()
-    .default(true),
+  changeEndsEnabled: boolean("change_ends_enabled").notNull().default(true),
   changeEndsAt: integer("change_ends_at"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
 
-export const stages = sqliteTable(
+export const stages = pgTable(
   "stages",
   {
     id: text("id").primaryKey(),
@@ -56,7 +53,7 @@ export const stages = sqliteTable(
   ],
 );
 
-export const stageRules = sqliteTable("stage_rules", {
+export const stageRules = pgTable("stage_rules", {
   stageId: text("stage_id")
     .primaryKey()
     .references(() => stages.id, { onDelete: "restrict" }),
@@ -65,7 +62,7 @@ export const stageRules = sqliteTable("stage_rules", {
     .references(() => matchRules.id, { onDelete: "restrict" }),
 });
 
-export const standingRules = sqliteTable("standing_rules", {
+export const standingRules = pgTable("standing_rules", {
   id: text("id").primaryKey(),
   eventId: text("event_id")
     .notNull()
@@ -78,7 +75,7 @@ export const standingRules = sqliteTable("standing_rules", {
   updatedAt: text("updated_at").notNull(),
 });
 
-export const qualificationRules = sqliteTable("qualification_rules", {
+export const qualificationRules = pgTable("qualification_rules", {
   id: text("id").primaryKey(),
   sourceStageId: text("source_stage_id")
     .notNull()
@@ -94,7 +91,7 @@ export const qualificationRules = sqliteTable("qualification_rules", {
   updatedAt: text("updated_at").notNull(),
 });
 
-export const scheduleRules = sqliteTable("schedule_rules", {
+export const scheduleRules = pgTable("schedule_rules", {
   id: text("id").primaryKey(),
   eventId: text("event_id")
     .notNull()
@@ -109,9 +106,7 @@ export const scheduleRules = sqliteTable("schedule_rules", {
   courtChangeBufferMinutes: integer("court_change_buffer_minutes")
     .notNull()
     .default(5),
-  hardRestConflicts: integer("hard_rest_conflicts", { mode: "boolean" })
-    .notNull()
-    .default(false),
+  hardRestConflicts: boolean("hard_rest_conflicts").notNull().default(false),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });

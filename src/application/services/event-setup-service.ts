@@ -92,11 +92,11 @@ export class EventSetupService {
       return { rule: existing[0], created: false };
     }
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const now = nowIso();
       const rule = buildRuleRow(eventId, preset.fields, now);
-      tx.insert(matchRules).values(rule).run();
-      writeAuditLog(tx, {
+      await tx.insert(matchRules).values(rule)
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "match_rule.apply_preset",
         entityType: "match_rule",
@@ -159,14 +159,14 @@ export class EventSetupService {
 
     const rulesByName = new Map(existingRules.map((r) => [r.name, r]));
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const now = nowIso();
       let replacedStages = 0;
 
       if (replace && existingStages.length > 0) {
         for (const stage of existingStages) {
-          tx.delete(stageRules).where(eq(stageRules.stageId, stage.id)).run();
-          tx.delete(stages).where(eq(stages.id, stage.id)).run();
+          await tx.delete(stageRules).where(eq(stageRules.stageId, stage.id))
+          await tx.delete(stages).where(eq(stages.id, stage.id))
           replacedStages += 1;
         }
       }
@@ -181,21 +181,21 @@ export class EventSetupService {
           continue;
         }
         const created = buildRuleRow(eventId, def.fields, now);
-        tx.insert(matchRules).values(created).run();
+        await tx.insert(matchRules).values(created)
         rulesByName.set(created.name, created);
         ruleIdByKey.set(def.key, created.id);
         rulesCreated += 1;
       }
 
       const defaultRuleId = ruleIdByKey.get(template.defaultRuleKey) ?? null;
-      tx.update(tournamentEvents)
+      await tx.update(tournamentEvents)
         .set({
           defaultMatchRuleId: defaultRuleId,
           thirdPlaceMatchEnabled: template.thirdPlaceMatchEnabled ?? false,
           updatedAt: now,
         })
         .where(eq(tournamentEvents.id, eventId))
-        .run();
+        
 
       let stagesCreated = 0;
       const createdStages: Stage[] = [];
@@ -218,15 +218,15 @@ export class EventSetupService {
           createdAt: now,
           updatedAt: now,
         };
-        tx.insert(stages).values(row).run();
-        tx.insert(stageRules)
+        await tx.insert(stages).values(row)
+        await tx.insert(stageRules)
           .values({ stageId: row.id, matchRuleId })
-          .run();
+          
         createdStages.push(row);
         stagesCreated += 1;
       }
 
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "event.apply_setup_template",
         entityType: "tournament_event",

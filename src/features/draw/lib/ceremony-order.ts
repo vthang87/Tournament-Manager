@@ -10,16 +10,7 @@ export type CeremonyPlacement = {
   clubName: string | null;
 };
 
-/** Display "CODE · Name", or whichever is available. */
-export function formatClubLabel(
-  clubCode: string | null | undefined,
-  clubName: string | null | undefined,
-): string | null {
-  const code = clubCode?.trim() || null;
-  const name = clubName?.trim() || null;
-  if (code && name && code !== name) return `${code} · ${name}`;
-  return code ?? name;
-}
+export { formatClubLabel } from "@/lib/club-label";
 
 /** Sort seeds first (ascending), then by position for a ceremonial order. */
 export function orderPlacementsForCeremony(

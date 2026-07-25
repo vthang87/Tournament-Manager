@@ -9,18 +9,22 @@ export async function ensureActorUser(
   actor: ActorContext,
   username?: string,
 ): Promise<void> {
+  if (!actor.userId) {
+    return;
+  }
+  const userId = actor.userId;
   const existing = await db
     .select()
     .from(users)
-    .where(eq(users.id, actor.userId))
+    .where(eq(users.id, userId))
     .limit(1);
   if (existing[0]) {
     return;
   }
   const now = nowIso();
   await db.insert(users).values({
-    id: actor.userId,
-    username: username ?? `${actor.role.toLowerCase()}-${actor.userId}`,
+    id: userId,
+    username: username ?? `${actor.role.toLowerCase()}-${userId}`,
     passwordHash: "test-hash",
     displayName: actor.role,
     role: actor.role as UserRole,

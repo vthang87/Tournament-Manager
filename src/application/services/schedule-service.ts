@@ -93,8 +93,8 @@ export class ScheduleService {
       hardRestConflicts: input.hardRestConflicts,
     });
 
-    this.db.transaction((tx) => {
-      writeAuditLog(tx, {
+    this.db.transaction(async (tx) => {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "schedule_rule.create",
         entityType: "schedule_rule",
@@ -121,8 +121,8 @@ export class ScheduleService {
     if (!updated) {
       throw new NotFoundError(`Schedule rule ${id} not found`);
     }
-    this.db.transaction((tx) => {
-      writeAuditLog(tx, {
+    this.db.transaction(async (tx) => {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "schedule_rule.update",
         entityType: "schedule_rule",
@@ -141,8 +141,8 @@ export class ScheduleService {
       throw new NotFoundError(`Schedule rule ${id} not found`);
     }
     await this.scheduleRules.delete(id);
-    this.db.transaction((tx) => {
-      writeAuditLog(tx, {
+    this.db.transaction(async (tx) => {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "schedule_rule.delete",
         entityType: "schedule_rule",
@@ -284,12 +284,12 @@ export class ScheduleService {
 
     const updated: MatchRecord[] = [];
     const now = nowIso();
-    this.db.transaction((tx) => {
+    this.db.transaction(async (tx) => {
       for (const assignment of input.assignments) {
         const durationOverride = input.assignments.find(
           (a) => a.matchId === assignment.matchId,
         )?.estimatedDurationMinutes;
-        tx.update(matchesTable)
+        await tx.update(matchesTable)
           .set({
             courtId: assignment.courtId,
             scheduledAt: assignment.startTime,
@@ -299,9 +299,9 @@ export class ScheduleService {
             updatedAt: now,
           })
           .where(eq(matchesTable.id, assignment.matchId))
-          .run();
+          
       }
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "schedule.save_assignments",
         entityType: "event",

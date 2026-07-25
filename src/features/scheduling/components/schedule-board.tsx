@@ -17,8 +17,10 @@ import { CSS } from "@dnd-kit/utilities";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Select } from "@/components/ui/select";
 import {
   bulkAssignMatchesAction,
@@ -35,6 +37,8 @@ import {
 export type ScheduleMatchDto = {
   id: string;
   label: string;
+  /** Club labels for both sides, when available. */
+  clubLabel: string | null;
   status: string;
   courtId: string | null;
   scheduledAt: string | null;
@@ -189,12 +193,29 @@ export function ScheduleBoard({
   const [conflicts, setConflicts] = useState<ConflictDto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [manualMatchId, setManualMatchId] = useState("");
+  const defaultLocalStart = timeSlots[0]
+    ? utcIsoToZonedLocal(timeSlots[0], timeZone)
+    : "";
+  const [manualStart, setManualStart] = useState(defaultLocalStart);
+  const [bulkStart, setBulkStart] = useState(defaultLocalStart);
   const [pending, startTransition] = useTransition();
   // Capture once after mount so upcoming filter stays stable during render.
   const [referenceNowMs] = useState(() => Date.now());
 
   const matchById = useMemo(
     () => new Map(matches.map((m) => [m.id, m])),
+    [matches],
+  );
+
+  const matchSelectOptions = useMemo(
+    () =>
+      matches.map((m) => ({
+        value: m.id,
+        label: m.label,
+        description: m.clubLabel ?? undefined,
+        hint: m.stageName,
+      })),
     [matches],
   );
 
@@ -390,21 +411,23 @@ export function ScheduleBoard({
               });
               setMessage(t("assignmentStaged"));
               setError(null);
+              setManualMatchId("");
             }}
           >
             <h3 className="text-sm font-semibold">{t("manualAssignment")}</h3>
             <div className="space-y-1">
               <Label htmlFor="matchId">{tCommon("match")}</Label>
-              <Select id="matchId" name="matchId" required defaultValue="">
-                <option value="" disabled>
-                  {t("selectMatch")}
-                </option>
-                {matches.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-              </Select>
+              <SearchableSelect
+                id="matchId"
+                name="matchId"
+                value={manualMatchId}
+                options={matchSelectOptions}
+                placeholder={t("selectMatch")}
+                searchPlaceholder={t("searchMatch")}
+                emptyText={t("noMatchFound")}
+                required
+                onChange={setManualMatchId}
+              />
             </div>
             <div className="space-y-1">
               <Label htmlFor="courtId">{tCommon("court")}</Label>
@@ -424,16 +447,13 @@ export function ScheduleBoard({
               <Label htmlFor="localStart">
                 {t("startLabel", { timezone: timeZone })}
               </Label>
-              <Input
+              <DateTimePicker
                 id="localStart"
                 name="localStart"
-                type="datetime-local"
+                value={manualStart}
+                onChange={setManualStart}
                 required
-                defaultValue={
-                  timeSlots[0]
-                    ? utcIsoToZonedLocal(timeSlots[0], timeZone)
-                    : undefined
-                }
+                placeholder={t("selectDateTime")}
               />
             </div>
             <div className="space-y-1">
@@ -457,7 +477,7 @@ export function ScheduleBoard({
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
               const local = String(fd.get("bulkStart") ?? "");
-              const gap = Number(fd.get("gapMinutes") ?? 0);
+              const gap = Number(fd.get("gapMinutes") ?? 30);
               const startTime = zonedLocalToUtcIso(local, timeZone);
               const activeCourts = courts.filter((c) => c.active);
               const ids = unscheduled.map((m) => m.id);
@@ -505,16 +525,13 @@ export function ScheduleBoard({
               <Label htmlFor="bulkStart">
                 {t("startLabel", { timezone: timeZone })}
               </Label>
-              <Input
+              <DateTimePicker
                 id="bulkStart"
                 name="bulkStart"
-                type="datetime-local"
+                value={bulkStart}
+                onChange={setBulkStart}
                 required
-                defaultValue={
-                  timeSlots[0]
-                    ? utcIsoToZonedLocal(timeSlots[0], timeZone)
-                    : undefined
-                }
+                placeholder={t("selectDateTime")}
               />
             </div>
             <div className="space-y-1">
@@ -524,7 +541,8 @@ export function ScheduleBoard({
                 name="gapMinutes"
                 type="number"
                 min={0}
-                defaultValue={0}
+                step={15}
+                defaultValue={30}
               />
             </div>
             <Button type="submit" size="sm" disabled={pending}>

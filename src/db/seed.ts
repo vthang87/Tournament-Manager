@@ -14,6 +14,7 @@ import {
 import { hashPassword } from "@/lib/auth/password";
 import { nowIso } from "@/lib/id";
 import { seedDemoTournament } from "./seed-demo-data";
+import { seedDemoLiveSimulation } from "./seed-demo-live";
 
 async function upsertAdmin(db: AppDatabase): Promise<void> {
   const username = process.env.SEED_ADMIN_USERNAME ?? "admin";
@@ -206,6 +207,8 @@ async function upsertRules(db: AppDatabase): Promise<void> {
 
 async function upsertCourts(db: AppDatabase): Promise<void> {
   const now = nowIso();
+  /** Demo referee PIN for court kiosk scoring (`/r/{slug}/c/{code}`). */
+  const demoPinHash = await hashPassword("1234");
   const courtDefs = [
     { id: SEED_IDS.courts[0], name: "Court 1", code: "C1" },
     { id: SEED_IDS.courts[1], name: "Court 2", code: "C2" },
@@ -226,6 +229,7 @@ async function upsertCourts(db: AppDatabase): Promise<void> {
       name: court.name,
       code: court.code,
       active: true,
+      accessPinHash: demoPinHash,
       updatedAt: now,
     };
 
@@ -296,9 +300,9 @@ async function upsertStages(db: AppDatabase): Promise<void> {
   }
 }
 
-export async function seedDatabase(databasePath?: string): Promise<void> {
-  runMigrations(databasePath);
-  const { db, sqlite } = createDb(databasePath);
+export async function seedDatabase(connectionString?: string): Promise<void> {
+  await runMigrations(connectionString);
+  const { db, pool } = createDb(connectionString);
 
   try {
     await upsertAdmin(db);
@@ -308,7 +312,8 @@ export async function seedDatabase(databasePath?: string): Promise<void> {
     await upsertCourts(db);
     await upsertStages(db);
     await seedDemoTournament(db);
+    await seedDemoLiveSimulation(db);
   } finally {
-    sqlite.close();
+    await pool.end();
   }
 }

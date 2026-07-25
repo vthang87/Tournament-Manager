@@ -244,7 +244,7 @@ export class DrawService {
     const randomSeed = String(input.randomSeed);
     const existingDraft = await this.draws.findDraftByStageId(input.stageId);
 
-    const session = this.db.transaction((tx) => {
+    const session = await this.db.transaction(async (tx) => {
       const now = nowIso();
       let sessionId: string;
       let redrawn = false;
@@ -252,20 +252,20 @@ export class DrawService {
       if (existingDraft) {
         sessionId = existingDraft.id;
         redrawn = true;
-        tx.delete(drawResults)
+        await tx.delete(drawResults)
           .where(eq(drawResults.drawSessionId, sessionId))
-          .run();
-        tx.update(drawSessions)
+          
+        await tx.update(drawSessions)
           .set({
             randomSeed,
             configurationSnapshotJson: JSON.stringify(snapshot),
             createdBy: actor.userId,
           })
           .where(eq(drawSessions.id, sessionId))
-          .run();
+          
       } else {
         sessionId = createId();
-        tx.insert(drawSessions)
+        await tx.insert(drawSessions)
           .values({
             id: sessionId,
             eventId: input.eventId,
@@ -277,7 +277,7 @@ export class DrawService {
             createdAt: now,
             confirmedAt: null,
           })
-          .run();
+          
       }
 
       const resultRows = engineResult.data.allocations.map((row) => ({
@@ -287,7 +287,7 @@ export class DrawService {
         position: row.position,
       }));
       if (resultRows.length > 0) {
-        tx.insert(drawResults).values(resultRows).run();
+        await tx.insert(drawResults).values(resultRows)
       }
 
       const sessionRow: DrawSession = {
@@ -302,7 +302,7 @@ export class DrawService {
         confirmedAt: null,
       };
 
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: redrawn ? "draw.redraw" : "draw.generate",
         entityType: "draw_session",
@@ -394,10 +394,10 @@ export class DrawService {
     }
 
     const session = await this.getSession(input.drawSessionId);
-    const results = this.db.transaction((tx) => {
-      tx.delete(drawResults)
+    const results = await this.db.transaction(async (tx) => {
+      await tx.delete(drawResults)
         .where(eq(drawResults.drawSessionId, session.id))
-        .run();
+        
 
       // Normalize missing positions per group.
       const byGroup = new Map<string, typeof input.allocation>();
@@ -418,9 +418,9 @@ export class DrawService {
         });
       }
       if (resultRows.length > 0) {
-        tx.insert(drawResults).values(resultRows).run();
+        await tx.insert(drawResults).values(resultRows)
       }
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "draw.manual_adjust",
         entityType: "draw_session",
@@ -483,13 +483,13 @@ export class DrawService {
       (await this.entries.listByEventId(session.eventId)).map((e) => [e.id, e]),
     );
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const now = nowIso();
       const groupIds = stageGroups.map((g) => g.id);
       if (groupIds.length > 0) {
-        tx.delete(groupEntries)
+        await tx.delete(groupEntries)
           .where(inArray(groupEntries.groupId, groupIds))
-          .run();
+          
       }
 
       const geRows = results.map((row) => {
@@ -502,21 +502,21 @@ export class DrawService {
         };
       });
       if (geRows.length > 0) {
-        tx.insert(groupEntries).values(geRows).run();
+        await tx.insert(groupEntries).values(geRows)
       }
 
-      tx.update(drawSessions)
+      await tx.update(drawSessions)
         .set({
           status: "LOCKED",
           confirmedAt: now,
         })
         .where(eq(drawSessions.id, session.id))
-        .run();
+        
 
-      tx.update(tournamentEvents)
+      await tx.update(tournamentEvents)
         .set({ status: "DRAW_CONFIRMED", updatedAt: now })
         .where(eq(tournamentEvents.id, session.eventId))
-        .run();
+        
 
       const locked: DrawSession = {
         ...session,
@@ -524,7 +524,7 @@ export class DrawService {
         confirmedAt: now,
       };
 
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "draw.confirm",
         entityType: "draw_session",
@@ -554,13 +554,13 @@ export class DrawService {
         "DRAW_NOT_CONFIRMABLE",
       );
     }
-    return this.db.transaction((tx) => {
-      tx.update(drawSessions)
+    return this.db.transaction(async (tx) => {
+      await tx.update(drawSessions)
         .set({ status: "LOCKED" })
         .where(eq(drawSessions.id, drawSessionId))
-        .run();
+        
       const locked: DrawSession = { ...session, status: "LOCKED" };
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "draw.lock",
         entityType: "draw_session",

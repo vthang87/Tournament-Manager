@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
-import { getSqlite } from "@/db/client";
+import { sql } from "drizzle-orm";
+import { getDb } from "@/db/client";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const sqlite = getSqlite();
-    const row = sqlite.prepare("select 1 as ok").get() as { ok: number };
+    const db = getDb();
+    const result = await db.execute(sql`select 1 as ok`);
+    const row = result.rows[0] as { ok: number } | undefined;
     return NextResponse.json({
       status: "ok",
-      database: row.ok === 1 ? "up" : "unknown",
+      database: row?.ok === 1 ? "up" : "unknown",
       timestamp: new Date().toISOString(),
     });
   } catch (error: unknown) {

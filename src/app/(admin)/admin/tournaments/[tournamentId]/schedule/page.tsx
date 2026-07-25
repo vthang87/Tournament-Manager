@@ -7,6 +7,22 @@ import {
 } from "@/application/services";
 import { getDb } from "@/db/client";
 import { eventStatusKey } from "@/i18n/status-labels";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ tournamentId: string }>;
+}) {
+  const { tournamentId } = await params;
+  const t = await getTranslations("tournaments");
+  try {
+    const tournament = await new TournamentService(getDb()).getById(tournamentId);
+    return pageTitle(t("schedule"), tournament.name);
+  } catch {
+    return pageTitle(t("schedule"));
+  }
+}
 
 export const dynamic = "force-dynamic";
 

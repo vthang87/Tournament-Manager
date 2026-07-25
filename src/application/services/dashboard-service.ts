@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { NotFoundError } from "@/application/errors";
 import type { AppDatabase } from "@/db/client";
 import {
@@ -8,7 +8,15 @@ import {
   DrizzleTournamentRepository,
 } from "@/db/repositories";
 import { DrizzleStageRepository } from "@/db/repositories/stage-repository";
-import { courts, entries, matches, tournamentEvents } from "@/db/schema";
+import {
+  clubs,
+  courts,
+  entries,
+  matches,
+  matchSets,
+  tournamentEvents,
+} from "@/db/schema";
+import { formatClubLabel } from "@/lib/club-label";
 
 export type TournamentDashboardSummary = {
   tournamentId: string;
@@ -33,9 +41,28 @@ export type TournamentDashboardSummary = {
     courtCode: string | null;
     entryAName: string | null;
     entryBName: string | null;
+    entryAClub: string | null;
+    entryBClub: string | null;
     eventName: string;
     status: string;
   }>;
+};
+
+export type LiveInProgressMatch = {
+  matchId: string;
+  entryAName: string | null;
+  entryBName: string | null;
+  /** Formatted club label ("CODE · Name") when the entry has a club. */
+  entryAClub: string | null;
+  entryBClub: string | null;
+  eventName: string;
+  startedAt: string | null;
+  status: string;
+  scoreSummary: string;
+  sets: Array<{ scoreA: number; scoreB: number }>;
+  courtId: string | null;
+  courtName: string | null;
+  courtCode: string | null;
 };
 
 export type CourtLiveSlot = {
@@ -44,14 +71,17 @@ export type CourtLiveSlot = {
   courtCode: string;
   nowPlaying: {
     matchId: string;
+    eventId: string;
     entryAName: string | null;
     entryBName: string | null;
     eventName: string;
     startedAt: string | null;
     status: string;
+    scoreSummary: string;
   } | null;
   next: {
     matchId: string;
+    eventId: string;
     entryAName: string | null;
     entryBName: string | null;
     eventName: string;
@@ -60,21 +90,43 @@ export type CourtLiveSlot = {
   } | null;
 };
 
+export type LivePreparingMatch = {
+  matchId: string;
+  entryAName: string | null;
+  entryBName: string | null;
+  entryAClub: string | null;
+  entryBClub: string | null;
+  eventName: string;
+  courtName: string | null;
+  courtCode: string | null;
+  /** Countdown target while teams are called to court. */
+  warmupUntil: string;
+};
+
 export type LiveBoardSnapshot = {
   tournamentId: string;
   tournamentName: string;
   courts: CourtLiveSlot[];
-  inProgress: CourtLiveSlot["nowPlaying"][];
+  inProgress: LiveInProgressMatch[];
+  preparing: LivePreparingMatch[];
   upcoming: TournamentDashboardSummary["upcoming"];
   recentResults: Array<{
     matchId: string;
+    entryAId: string | null;
+    entryBId: string | null;
     entryAName: string | null;
     entryBName: string | null;
+    entryAClub: string | null;
+    entryBClub: string | null;
+    winnerEntryId: string | null;
     winnerName: string | null;
     eventName: string;
     courtCode: string | null;
     completedAt: string | null;
+    /** Special finish type when not a normal score, e.g. WALKOVER. */
+    resolution: string | null;
     scoreSummary: string;
+    sets: Array<{ scoreA: number; scoreB: number }>;
   }>;
   updatedAt: string;
 };
@@ -94,6 +146,33 @@ async function entryNameMap(
     .where(inArray(entries.id, unique));
   for (const row of rows) {
     map.set(row.id, row.displayName);
+  }
+  return map;
+}
+
+async function entryClubMap(
+  db: AppDatabase,
+  entryIds: string[],
+): Promise<Map<string, string>> {
+  const unique = [...new Set(entryIds.filter(Boolean))];
+  const map = new Map<string, string>();
+  if (unique.length === 0) {
+    return map;
+  }
+  const rows = await db
+    .select({
+      id: entries.id,
+      clubShortName: clubs.shortName,
+      clubName: clubs.name,
+    })
+    .from(entries)
+    .leftJoin(clubs, eq(entries.clubId, clubs.id))
+    .where(inArray(entries.id, unique));
+  for (const row of rows) {
+    const label = formatClubLabel(row.clubShortName, row.clubName);
+    if (label) {
+      map.set(row.id, label);
+    }
   }
   return map;
 }
@@ -197,10 +276,12 @@ export class DashboardService {
         .orderBy(asc(matches.scheduledAt), asc(matches.createdAt))
         .limit(12);
 
-      const names = await entryNameMap(
-        this.db,
-        upcomingMatches.flatMap((m) => [m.entryAId ?? "", m.entryBId ?? ""]),
-      );
+      const upcomingEntryIds = upcomingMatches.flatMap((m) => [
+        m.entryAId ?? "",
+        m.entryBId ?? "",
+      ]);
+      const names = await entryNameMap(this.db, upcomingEntryIds);
+      const clubsByEntry = await entryClubMap(this.db, upcomingEntryIds);
 
       for (const m of upcomingMatches) {
         upcoming.push({
@@ -209,6 +290,12 @@ export class DashboardService {
           courtCode: m.courtCode,
           entryAName: m.entryAId ? (names.get(m.entryAId) ?? null) : null,
           entryBName: m.entryBId ? (names.get(m.entryBId) ?? null) : null,
+          entryAClub: m.entryAId
+            ? (clubsByEntry.get(m.entryAId) ?? null)
+            : null,
+          entryBClub: m.entryBId
+            ? (clubsByEntry.get(m.entryBId) ?? null)
+            : null,
           eventName: m.eventName,
           status: m.status,
         });
@@ -257,6 +344,7 @@ export class DashboardService {
     const matchRows = await this.db
       .select({
         id: matches.id,
+        eventId: matches.eventId,
         courtId: matches.courtId,
         status: matches.status,
         scheduledAt: matches.scheduledAt,
@@ -280,6 +368,39 @@ export class DashboardService {
       matchRows.flatMap((m) => [m.entryAId ?? "", m.entryBId ?? ""]),
     );
 
+    const inProgressIds = matchRows
+      .filter((m) => m.status === "IN_PROGRESS")
+      .map((m) => m.id);
+    const scoreByMatchId = new Map<string, string>();
+    if (inProgressIds.length > 0) {
+      const setRows = await this.db
+        .select({
+          matchId: matchSets.matchId,
+          setNumber: matchSets.setNumber,
+          scoreA: matchSets.scoreA,
+          scoreB: matchSets.scoreB,
+        })
+        .from(matchSets)
+        .where(inArray(matchSets.matchId, inProgressIds))
+        .orderBy(asc(matchSets.setNumber));
+
+      const grouped = new Map<
+        string,
+        Array<{ scoreA: number; scoreB: number }>
+      >();
+      for (const row of setRows) {
+        const list = grouped.get(row.matchId) ?? [];
+        list.push({ scoreA: row.scoreA, scoreB: row.scoreB });
+        grouped.set(row.matchId, list);
+      }
+      for (const [matchId, sets] of grouped) {
+        scoreByMatchId.set(
+          matchId,
+          sets.map((s) => `${s.scoreA}–${s.scoreB}`).join(", "),
+        );
+      }
+    }
+
     return courtRows.map((court) => {
       const onCourt = matchRows.filter((m) => m.courtId === court.id);
       const now = onCourt.find((m) => m.status === "IN_PROGRESS") ?? null;
@@ -295,6 +416,7 @@ export class DashboardService {
         nowPlaying: now
           ? {
               matchId: now.id,
+              eventId: now.eventId,
               entryAName: now.entryAId
                 ? (names.get(now.entryAId) ?? null)
                 : null,
@@ -304,11 +426,13 @@ export class DashboardService {
               eventName: now.eventName,
               startedAt: now.startedAt,
               status: now.status,
+              scoreSummary: scoreByMatchId.get(now.id) ?? "",
             }
           : null,
         next: next
           ? {
               matchId: next.id,
+              eventId: next.eventId,
               entryAName: next.entryAId
                 ? (names.get(next.entryAId) ?? null)
                 : null,
@@ -329,9 +453,156 @@ export class DashboardService {
     const courtsLive = await this.courtLiveBoard(tournamentId);
     const eventRows = await this.events.listByTournamentId(tournamentId);
     const eventIds = eventRows.map((e) => e.id);
+    const courtById = new Map(
+      courtsLive.map((c) => [
+        c.courtId,
+        { name: c.courtName, code: c.courtCode },
+      ]),
+    );
 
+    const inProgress: LiveInProgressMatch[] = [];
+    const preparing: LivePreparingMatch[] = [];
     const recentResults: LiveBoardSnapshot["recentResults"] = [];
     if (eventIds.length > 0) {
+      const preparingRows = await this.db
+        .select({
+          id: matches.id,
+          courtId: matches.courtId,
+          warmupUntil: matches.warmupUntil,
+          entryAId: matches.entryAId,
+          entryBId: matches.entryBId,
+          eventName: tournamentEvents.name,
+          courtName: courts.name,
+          courtCode: courts.code,
+        })
+        .from(matches)
+        .innerJoin(
+          tournamentEvents,
+          eq(matches.eventId, tournamentEvents.id),
+        )
+        .leftJoin(courts, eq(matches.courtId, courts.id))
+        .where(
+          and(
+            inArray(matches.eventId, eventIds),
+            inArray(matches.status, ["PENDING", "SCHEDULED"]),
+            isNotNull(matches.warmupUntil),
+          ),
+        )
+        .orderBy(asc(matches.warmupUntil));
+
+      const prepEntryIds = preparingRows.flatMap((m) => [
+        m.entryAId ?? "",
+        m.entryBId ?? "",
+      ]);
+      const prepNames = await entryNameMap(this.db, prepEntryIds);
+      const prepClubs = await entryClubMap(this.db, prepEntryIds);
+      for (const m of preparingRows) {
+        if (!m.warmupUntil) continue;
+        preparing.push({
+          matchId: m.id,
+          entryAName: m.entryAId ? (prepNames.get(m.entryAId) ?? null) : null,
+          entryBName: m.entryBId ? (prepNames.get(m.entryBId) ?? null) : null,
+          entryAClub: m.entryAId ? (prepClubs.get(m.entryAId) ?? null) : null,
+          entryBClub: m.entryBId ? (prepClubs.get(m.entryBId) ?? null) : null,
+          eventName: m.eventName,
+          courtName: m.courtName ?? null,
+          courtCode: m.courtCode ?? null,
+          warmupUntil: m.warmupUntil,
+        });
+      }
+
+      const liveRows = await this.db
+        .select({
+          id: matches.id,
+          courtId: matches.courtId,
+          status: matches.status,
+          startedAt: matches.startedAt,
+          entryAId: matches.entryAId,
+          entryBId: matches.entryBId,
+          eventName: tournamentEvents.name,
+          courtName: courts.name,
+          courtCode: courts.code,
+        })
+        .from(matches)
+        .innerJoin(
+          tournamentEvents,
+          eq(matches.eventId, tournamentEvents.id),
+        )
+        .leftJoin(courts, eq(matches.courtId, courts.id))
+        .where(
+          and(
+            inArray(matches.eventId, eventIds),
+            eq(matches.status, "IN_PROGRESS"),
+          ),
+        )
+        .orderBy(
+          asc(courts.code),
+          asc(matches.startedAt),
+          asc(matches.createdAt),
+        );
+
+      const liveEntryIds = liveRows.flatMap((m) => [
+        m.entryAId ?? "",
+        m.entryBId ?? "",
+      ]);
+      const liveNames = await entryNameMap(this.db, liveEntryIds);
+      const liveClubs = await entryClubMap(this.db, liveEntryIds);
+
+      const scoreByMatchId = new Map<string, string>();
+      const setsByMatchId = new Map<
+        string,
+        Array<{ scoreA: number; scoreB: number }>
+      >();
+      if (liveRows.length > 0) {
+        const setRows = await this.db
+          .select({
+            matchId: matchSets.matchId,
+            setNumber: matchSets.setNumber,
+            scoreA: matchSets.scoreA,
+            scoreB: matchSets.scoreB,
+          })
+          .from(matchSets)
+          .where(
+            inArray(
+              matchSets.matchId,
+              liveRows.map((m) => m.id),
+            ),
+          )
+          .orderBy(asc(matchSets.setNumber));
+
+        for (const row of setRows) {
+          const list = setsByMatchId.get(row.matchId) ?? [];
+          list.push({ scoreA: row.scoreA, scoreB: row.scoreB });
+          setsByMatchId.set(row.matchId, list);
+        }
+        for (const [matchId, sets] of setsByMatchId) {
+          scoreByMatchId.set(
+            matchId,
+            sets.map((s) => `${s.scoreA}–${s.scoreB}`).join(", "),
+          );
+        }
+      }
+
+      for (const m of liveRows) {
+        const courtMeta = m.courtId ? courtById.get(m.courtId) : null;
+        const sets = setsByMatchId.get(m.id) ?? [];
+        inProgress.push({
+          matchId: m.id,
+          entryAName: m.entryAId ? (liveNames.get(m.entryAId) ?? null) : null,
+          entryBName: m.entryBId ? (liveNames.get(m.entryBId) ?? null) : null,
+          entryAClub: m.entryAId ? (liveClubs.get(m.entryAId) ?? null) : null,
+          entryBClub: m.entryBId ? (liveClubs.get(m.entryBId) ?? null) : null,
+          eventName: m.eventName,
+          startedAt: m.startedAt,
+          status: m.status,
+          scoreSummary: scoreByMatchId.get(m.id) ?? "",
+          sets,
+          courtId: m.courtId,
+          courtName: m.courtName ?? courtMeta?.name ?? null,
+          courtCode: m.courtCode ?? courtMeta?.code ?? null,
+        });
+      }
+
       const completed = await this.db
         .select({
           id: matches.id,
@@ -339,6 +610,7 @@ export class DashboardService {
           entryBId: matches.entryBId,
           winnerEntryId: matches.winnerEntryId,
           completedAt: matches.completedAt,
+          resolution: matches.resolution,
           eventName: tournamentEvents.name,
           courtCode: courts.code,
         })
@@ -365,24 +637,40 @@ export class DashboardService {
           m.winnerEntryId ?? "",
         ]),
       );
+      const resultClubs = await entryClubMap(
+        this.db,
+        completed.flatMap((m) => [m.entryAId ?? "", m.entryBId ?? ""]),
+      );
 
       for (const m of completed) {
         const withSets = await this.matches.findByIdWithSets(m.id);
-        const scoreSummary =
-          withSets?.sets
-            .map((s) => `${s.scoreA}-${s.scoreB}`)
-            .join(", ") ?? "";
+        const sets =
+          withSets?.sets.map((s) => ({
+            scoreA: s.scoreA,
+            scoreB: s.scoreB,
+          })) ?? [];
+        const scoreSummary = sets
+          .map((s) => `${s.scoreA}–${s.scoreB}`)
+          .join(", ");
         recentResults.push({
           matchId: m.id,
+          entryAId: m.entryAId,
+          entryBId: m.entryBId,
           entryAName: m.entryAId ? (names.get(m.entryAId) ?? null) : null,
           entryBName: m.entryBId ? (names.get(m.entryBId) ?? null) : null,
+          entryAClub: m.entryAId ? (resultClubs.get(m.entryAId) ?? null) : null,
+          entryBClub: m.entryBId ? (resultClubs.get(m.entryBId) ?? null) : null,
+          winnerEntryId: m.winnerEntryId,
           winnerName: m.winnerEntryId
             ? (names.get(m.winnerEntryId) ?? null)
             : null,
           eventName: m.eventName,
           courtCode: m.courtCode,
           completedAt: m.completedAt,
+          resolution:
+            m.resolution && m.resolution !== "NORMAL" ? m.resolution : null,
           scoreSummary,
+          sets,
         });
       }
     }
@@ -391,9 +679,8 @@ export class DashboardService {
       tournamentId: summary.tournamentId,
       tournamentName: summary.name,
       courts: courtsLive,
-      inProgress: courtsLive
-        .map((c) => c.nowPlaying)
-        .filter((m): m is NonNullable<typeof m> => m != null),
+      inProgress,
+      preparing,
       upcoming: summary.upcoming,
       recentResults,
       updatedAt: new Date().toISOString(),

@@ -8,6 +8,12 @@ import {
 } from "@/components/ui/card";
 import { LoginForm } from "@/features/auth/login-form";
 import { LocaleSwitcher } from "@/features/i18n/locale-switcher";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata() {
+  const t = await getTranslations("auth");
+  return pageTitle(t("signIn"));
+}
 
 export default async function LoginPage() {
   const t = await getTranslations("auth");

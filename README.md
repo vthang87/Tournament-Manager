@@ -23,6 +23,7 @@ Open [http://localhost:3000/login](http://localhost:3000/login). The seed create
 - Admin user `admin` / `admin123` (Argon2-hashed; re-seed refreshes the hash)
 - Tournament `HCMC Badminton Open 2026` (slug `hcmc-badminton-open-2026`)
 - Men's Doubles event, 3 match-rule presets, 4 courts
+- Court referee PIN `1234` on all demo courts (kiosk scoring)
 
 `/admin/*` requires a signed `tm_session` cookie. Unauthenticated requests redirect to `/login`.
 
@@ -37,6 +38,14 @@ Public read-only views (no auth, no PII):
 Example after seed: [http://localhost:3000/t/hcmc-badminton-open-2026](http://localhost:3000/t/hcmc-badminton-open-2026)
 
 Sections: schedule, results, groups, standings, bracket + QR code to the same URL.
+
+Court referee scoring (PIN unlock, no admin account):
+
+```text
+{APP_URL}/r/{tournament-slug}/c/{court-code}
+```
+
+Example: [http://localhost:3000/r/hcmc-badminton-open-2026/c/C1](http://localhost:3000/r/hcmc-badminton-open-2026/c/C1) (PIN `1234` after seed). Configure PIN and copy links from Admin → Courts.
 
 Ops boards (auth required):
 
@@ -57,8 +66,42 @@ Ops boards (auth required):
 | `pnpm db:generate` | Generate Drizzle migrations from schema |
 | `pnpm db:migrate` | Apply migrations |
 | `pnpm db:seed` | Idempotent local seed |
+| `pnpm db:seed:scenarios` | Seed 6 idempotent badminton + pickleball demo scenarios |
 
 SQLite file defaults to `./data/tournament-manager.db` (gitignored).
+
+## Full demo scenarios
+
+Run the dedicated scenario seed without changing the existing `pnpm db:seed`
+snapshot:
+
+```bash
+pnpm db:seed:scenarios
+```
+
+The command creates six isolated demo tournaments. Each sport has a draw-ready
+fixture, a knockout-live fixture, and a completed fixture:
+
+| Sport | State | Public URL |
+|---|---|---|
+| Badminton | Draw ready | `/t/badminton-demo-draw-ready` |
+| Badminton | Knockout live | `/t/badminton-demo-knockout-live` |
+| Badminton | Completed | `/t/badminton-demo-completed` |
+| Pickleball | Draw ready | `/t/pickleball-demo-draw-ready` |
+| Pickleball | Knockout live | `/t/pickleball-demo-knockout-live` |
+| Pickleball | Completed | `/t/pickleball-demo-completed` |
+
+Every progressed fixture contains 32 men's doubles entries, 8 groups, 4
+courts, 48 group matches, and a 16-match knockout bracket including the third
+place match. Across each sport the data covers pending, scheduled,
+called-to-court, in-progress, normal completion, walkover, no-show, retirement,
+disqualification, and cancellation.
+
+Pickleball uses one game to 15 for group/playoff matches and best-of-three to 11
+for medal matches, win by two. The engine currently requires a finite maximum,
+so the pickleball technical cap is set to 99.
+
+Credentials remain `admin` / `admin123`; all demo court links use PIN `1234`.
 
 ## User guide website
 
