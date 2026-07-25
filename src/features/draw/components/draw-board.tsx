@@ -52,6 +52,8 @@ import {
   localizeDrawIssue,
   type DrawIssueView,
 } from "@/features/draw/lib/localize-draw-issue";
+import { ConfirmDrawModal } from "./confirm-draw-modal";
+import { cn } from "@/lib/utils";
 
 export type DrawEntryView = {
   id: string;
