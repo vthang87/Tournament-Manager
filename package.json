@@ -6,6 +6,7 @@
     "node": ">=20"
   },
   "scripts": {
+    "postinstall": "sh scripts/pnpm-docker-sync.sh || true",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -17,6 +18,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate-cli.ts",
     "db:seed": "tsx src/db/seed-cli.ts",
+    "db:seed:knockout": "tsx src/db/seed-demo-knockout.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
@@ -27,7 +29,7 @@
     "@hookform/resolvers": "^5.4.0",
     "@node-rs/argon2": "^2.0.2",
     "@radix-ui/react-slot": "^1.2.3",
-    "better-sqlite3": "^11.10.0",
+    "pg": "^8.16.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -51,7 +53,7 @@
   "devDependencies": {
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
-    "@types/better-sqlite3": "^7.6.13",
+    "@types/pg": "^8.15.5",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
