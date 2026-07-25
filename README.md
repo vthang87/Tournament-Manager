@@ -60,6 +60,21 @@ Ops boards (auth required):
 
 SQLite file defaults to `./data/tournament-manager.db` (gitignored).
 
+## User guide website
+
+The Vietnamese guide is built with Material for MkDocs. Source pages live in
+[`docs/hdsd`](docs/hdsd/index.md).
+
+```bash
+python3 -m pip install -r requirements-docs.txt
+mkdocs serve
+mkdocs build --strict
+```
+
+Local preview: [http://127.0.0.1:8000](http://127.0.0.1:8000)
+
+GitHub Pages: [https://vthang87.github.io/Tournament-Manager/](https://vthang87.github.io/Tournament-Manager/)
+
 ## Excel import / export
 
 **Roles:** import = ADMIN or OPERATOR; export = any authenticated role with `view` (operator+ typically).
