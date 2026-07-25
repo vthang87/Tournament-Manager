@@ -244,7 +244,7 @@ export class DrawService {
     const randomSeed = String(input.randomSeed);
     const existingDraft = await this.draws.findDraftByStageId(input.stageId);
 
-    const session = this.db.transaction(async (tx) => {
+    const session = await this.db.transaction(async (tx) => {
       const now = nowIso();
       let sessionId: string;
       let redrawn = false;
@@ -394,7 +394,7 @@ export class DrawService {
     }
 
     const session = await this.getSession(input.drawSessionId);
-    const results = this.db.transaction(async (tx) => {
+    const results = await this.db.transaction(async (tx) => {
       await tx.delete(drawResults)
         .where(eq(drawResults.drawSessionId, session.id))
         

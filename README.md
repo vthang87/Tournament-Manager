@@ -66,8 +66,42 @@ Ops boards (auth required):
 | `pnpm db:generate` | Generate Drizzle migrations from schema |
 | `pnpm db:migrate` | Apply migrations |
 | `pnpm db:seed` | Idempotent local seed |
+| `pnpm db:seed:scenarios` | Seed 6 idempotent badminton + pickleball demo scenarios |
 
 SQLite file defaults to `./data/tournament-manager.db` (gitignored).
+
+## Full demo scenarios
+
+Run the dedicated scenario seed without changing the existing `pnpm db:seed`
+snapshot:
+
+```bash
+pnpm db:seed:scenarios
+```
+
+The command creates six isolated demo tournaments. Each sport has a draw-ready
+fixture, a knockout-live fixture, and a completed fixture:
+
+| Sport | State | Public URL |
+|---|---|---|
+| Badminton | Draw ready | `/t/badminton-demo-draw-ready` |
+| Badminton | Knockout live | `/t/badminton-demo-knockout-live` |
+| Badminton | Completed | `/t/badminton-demo-completed` |
+| Pickleball | Draw ready | `/t/pickleball-demo-draw-ready` |
+| Pickleball | Knockout live | `/t/pickleball-demo-knockout-live` |
+| Pickleball | Completed | `/t/pickleball-demo-completed` |
+
+Every progressed fixture contains 32 men's doubles entries, 8 groups, 4
+courts, 48 group matches, and a 16-match knockout bracket including the third
+place match. Across each sport the data covers pending, scheduled,
+called-to-court, in-progress, normal completion, walkover, no-show, retirement,
+disqualification, and cancellation.
+
+Pickleball uses one game to 15 for group/playoff matches and best-of-three to 11
+for medal matches, win by two. The engine currently requires a finite maximum,
+so the pickleball technical cap is set to 99.
+
+Credentials remain `admin` / `admin123`; all demo court links use PIN `1234`.
 
 ## User guide
 
