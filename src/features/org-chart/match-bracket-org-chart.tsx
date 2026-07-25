@@ -15,6 +15,7 @@ const CARD_W = 212;
 const CARD_HEADER_H = 22;
 const ROW_H = 28;
 const CARD_H = CARD_HEADER_H + ROW_H * 2;
+const SET_SCORE_W = 22;
 const COL_GAP = 64;
 const PAD_X = 20;
 const PAD_Y = 16;
@@ -65,23 +66,57 @@ function slotName(
   return slot.displayName ?? labels.tbd;
 }
 
+function SetScoreColumns({
+  scores,
+  setCount,
+  highlight,
+}: {
+  scores: number[];
+  setCount: number;
+  highlight: boolean;
+}) {
+  if (setCount === 0) return null;
+
+  return (
+    <div className="flex h-full shrink-0 items-stretch self-stretch border-l border-slate-600/70">
+      {Array.from({ length: setCount }, (_, index) => (
+        <span
+          key={index}
+          className={cn(
+            "flex items-center justify-center border-l border-slate-700/70 font-mono text-[11px] tabular-nums first:border-l-0",
+            highlight ? "text-emerald-300" : "text-slate-400",
+          )}
+          style={{ width: SET_SCORE_W }}
+        >
+          {scores[index] ?? ""}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function TeamRow({
   name,
   scores,
+  setCount,
   isWinner,
   isLoser,
   isBye,
+  showScoreDivider,
 }: {
   name: string;
   scores: number[];
+  setCount: number;
   isWinner: boolean;
   isLoser: boolean;
   isBye: boolean;
+  showScoreDivider?: boolean;
 }) {
   return (
     <div
       className={cn(
-        "flex items-center gap-2 border-l-2 px-2",
+        "flex items-stretch gap-0 border-l-2",
+        showScoreDivider && "border-t border-slate-700/80",
         isWinner
           ? "border-emerald-400 bg-emerald-500/10"
           : "border-transparent",
@@ -90,7 +125,7 @@ function TeamRow({
     >
       <span
         className={cn(
-          "min-w-0 flex-1 truncate text-xs",
+          "flex min-w-0 flex-1 items-center truncate px-2 text-xs",
           isWinner && "font-semibold text-emerald-200",
           isLoser && "text-slate-500",
           !isWinner && !isLoser && (isBye ? "text-slate-500" : "text-slate-200"),
@@ -98,16 +133,11 @@ function TeamRow({
       >
         {name}
       </span>
-      {scores.length > 0 ? (
-        <span
-          className={cn(
-            "shrink-0 font-mono text-[11px] tabular-nums",
-            isWinner ? "text-emerald-300" : "text-slate-400",
-          )}
-        >
-          {scores.join(" ")}
-        </span>
-      ) : null}
+      <SetScoreColumns
+        scores={scores}
+        setCount={setCount}
+        highlight={isWinner}
+      />
     </div>
   );
 }
@@ -128,6 +158,9 @@ function MatchNodeCard({
   const decided = match.winnerEntryId != null;
   const aWin = decided && match.winnerEntryId === match.slotA.entryId;
   const bWin = decided && match.winnerEntryId === match.slotB.entryId;
+  const setCount = match.setScores.length;
+  const scoresA = match.setScores.map((s) => s.scoreA);
+  const scoresB = match.setScores.map((s) => s.scoreB);
 
   return (
     <Link
@@ -162,17 +195,20 @@ function MatchNodeCard({
       </div>
       <TeamRow
         name={slotName(match.slotA, labels)}
-        scores={match.setScores.map((s) => s.scoreA)}
+        scores={scoresA}
+        setCount={setCount}
         isWinner={aWin}
         isLoser={decided && !aWin}
         isBye={match.slotA.isBye}
       />
       <TeamRow
         name={slotName(match.slotB, labels)}
-        scores={match.setScores.map((s) => s.scoreB)}
+        scores={scoresB}
+        setCount={setCount}
         isWinner={bWin}
         isLoser={decided && !bWin}
         isBye={match.slotB.isBye}
+        showScoreDivider
       />
     </Link>
   );
