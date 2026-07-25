@@ -6,6 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createTournamentAction } from "@/features/tournaments/actions";
 import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata() {
+  const t = await getTranslations("tournaments");
+  return pageTitle(t("new"));
+}
 
 export default async function NewTournamentPage() {
   await requireRoleOrRedirect(["ADMIN"]);

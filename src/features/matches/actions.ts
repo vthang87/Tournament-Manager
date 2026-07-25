@@ -22,6 +22,8 @@ function revalidateMatchViews(
   revalidatePath(base);
   revalidatePath(`${base}/matches`);
   revalidatePath(`${base}/groups`);
+  revalidatePath(`/admin/tournaments/${tournamentId}/live`);
+  revalidatePath(`/admin/tournaments/${tournamentId}/courts/live`);
   if (matchId) {
     revalidatePath(`${base}/matches/${matchId}`);
   }
@@ -43,8 +45,73 @@ export async function startMatchAction(
       formData,
       "expectedUpdatedAt",
     );
+    const courtId = formOptionalString(formData, "courtId");
     const service = createMatchOpsService(getDb());
-    await service.startMatch(actor, matchId, expectedUpdatedAt ?? undefined);
+    await service.startMatch(actor, matchId, expectedUpdatedAt ?? undefined, {
+      courtId: courtId ?? null,
+    });
+  });
+  if (result.ok) {
+    revalidateMatchViews(tournamentId, eventId, matchId);
+  }
+  return result;
+}
+
+export async function callToCourtAction(
+  tournamentId: string,
+  eventId: string,
+  matchId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  const result = await withActor(async (actor) => {
+    const minutes = Number(formOptionalString(formData, "minutes") ?? "3");
+    const service = createMatchOpsService(getDb());
+    await service.callToCourt(
+      actor,
+      matchId,
+      Number.isFinite(minutes) ? minutes : 3,
+      formOptionalString(formData, "expectedUpdatedAt") ?? undefined,
+    );
+  });
+  if (result.ok) {
+    revalidateMatchViews(tournamentId, eventId, matchId);
+  }
+  return result;
+}
+
+export async function clearWarmupAction(
+  tournamentId: string,
+  eventId: string,
+  matchId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  const result = await withActor(async (actor) => {
+    const service = createMatchOpsService(getDb());
+    await service.clearWarmup(
+      actor,
+      matchId,
+      formOptionalString(formData, "expectedUpdatedAt") ?? undefined,
+    );
+  });
+  if (result.ok) {
+    revalidateMatchViews(tournamentId, eventId, matchId);
+  }
+  return result;
+}
+
+export async function swapSidesAction(
+  tournamentId: string,
+  eventId: string,
+  matchId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  const result = await withActor(async (actor) => {
+    const service = createMatchOpsService(getDb());
+    await service.swapSides(
+      actor,
+      matchId,
+      formOptionalString(formData, "expectedUpdatedAt") ?? undefined,
+    );
   });
   if (result.ok) {
     revalidateMatchViews(tournamentId, eventId, matchId);
@@ -65,6 +132,27 @@ export async function enterScoreAction(
       sets: parseSetsJson(formData),
       expectedUpdatedAt: formOptionalString(formData, "expectedUpdatedAt"),
     });
+  });
+  if (result.ok) {
+    revalidateMatchViews(tournamentId, eventId, matchId);
+  }
+  return result;
+}
+
+export async function saveLiveScoreAction(
+  tournamentId: string,
+  eventId: string,
+  formData: FormData,
+): Promise<ActionResult<{ updatedAt: string }>> {
+  const matchId = formString(formData, "matchId");
+  const result = await withActor(async (actor) => {
+    const service = createMatchOpsService(getDb());
+    const match = await service.saveLiveScore(actor, {
+      matchId,
+      sets: parseSetsJson(formData),
+      expectedUpdatedAt: formOptionalString(formData, "expectedUpdatedAt"),
+    });
+    return { updatedAt: match.updatedAt };
   });
   if (result.ok) {
     revalidateMatchViews(tournamentId, eventId, matchId);

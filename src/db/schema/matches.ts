@@ -1,16 +1,17 @@
 import {
+  boolean,
   index,
   integer,
-  sqliteTable,
+  pgTable,
   text,
   uniqueIndex,
-} from "drizzle-orm/sqlite-core";
+} from "drizzle-orm/pg-core";
 import { groups } from "./draw";
 import { entries } from "./participants";
 import { stages } from "./rules";
 import { courts, tournamentEvents } from "./tournaments";
 
-export const matches = sqliteTable(
+export const matches = pgTable(
   "matches",
   {
     id: text("id").primaryKey(),
@@ -63,15 +64,15 @@ export const matches = sqliteTable(
     }),
     scheduledAt: text("scheduled_at"),
     estimatedDurationMinutes: integer("estimated_duration_minutes"),
+    /** Countdown target while teams are called to court (pre-start). Null = not called. */
+    warmupUntil: text("warmup_until"),
     startedAt: text("started_at"),
     completedAt: text("completed_at"),
     nextMatchId: text("next_match_id"),
     nextMatchSlot: text("next_match_slot", { enum: ["A", "B"] }),
     loserNextMatchId: text("loser_next_match_id"),
     loserNextMatchSlot: text("loser_next_match_slot", { enum: ["A", "B"] }),
-    isThirdPlace: integer("is_third_place", { mode: "boolean" })
-      .notNull()
-      .default(false),
+    isThirdPlace: boolean("is_third_place").notNull().default(false),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
@@ -83,7 +84,7 @@ export const matches = sqliteTable(
   ],
 );
 
-export const matchSets = sqliteTable(
+export const matchSets = pgTable(
   "match_sets",
   {
     id: text("id").primaryKey(),

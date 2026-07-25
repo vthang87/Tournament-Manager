@@ -1,13 +1,13 @@
 import {
   integer,
+  pgTable,
   primaryKey,
-  sqliteTable,
   text,
   uniqueIndex,
-} from "drizzle-orm/sqlite-core";
+} from "drizzle-orm/pg-core";
 import { tournamentEvents } from "./tournaments";
 
-export const clubs = sqliteTable("clubs", {
+export const clubs = pgTable("clubs", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   shortName: text("short_name"),
@@ -16,7 +16,7 @@ export const clubs = sqliteTable("clubs", {
   updatedAt: text("updated_at").notNull(),
 });
 
-export const players = sqliteTable("players", {
+export const players = pgTable("players", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   displayName: text("display_name").notNull(),
@@ -35,7 +35,7 @@ export const players = sqliteTable("players", {
   updatedAt: text("updated_at").notNull(),
 });
 
-export const entries = sqliteTable("entries", {
+export const entries = pgTable("entries", {
   id: text("id").primaryKey(),
   eventId: text("event_id")
     .notNull()
@@ -53,7 +53,7 @@ export const entries = sqliteTable("entries", {
   updatedAt: text("updated_at").notNull(),
 });
 
-export const entryMembers = sqliteTable(
+export const entryMembers = pgTable(
   "entry_members",
   {
     entryId: text("entry_id")

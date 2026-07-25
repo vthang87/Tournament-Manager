@@ -15,6 +15,7 @@ function mapCourt(row: typeof courts.$inferSelect): Court {
     name: row.name,
     code: row.code,
     active: row.active,
+    hasAccessPin: Boolean(row.accessPinHash),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -31,6 +32,7 @@ export class DrizzleCourtRepository {
       name: input.name,
       code: input.code,
       active: input.active ?? true,
+      accessPinHash: null as string | null,
       createdAt: now,
       updatedAt: now,
     };
@@ -47,6 +49,21 @@ export class DrizzleCourtRepository {
     return rows[0] ? mapCourt(rows[0]) : null;
   }
 
+  async findByIdWithPinHash(
+    id: string,
+  ): Promise<(Court & { accessPinHash: string | null }) | null> {
+    const rows = await this.db
+      .select()
+      .from(courts)
+      .where(eq(courts.id, id))
+      .limit(1);
+    const row = rows[0];
+    if (!row) {
+      return null;
+    }
+    return { ...mapCourt(row), accessPinHash: row.accessPinHash };
+  }
+
   async findByTournamentAndCode(
     tournamentId: string,
     code: string,
@@ -57,6 +74,22 @@ export class DrizzleCourtRepository {
       .where(and(eq(courts.tournamentId, tournamentId), eq(courts.code, code)))
       .limit(1);
     return rows[0] ? mapCourt(rows[0]) : null;
+  }
+
+  async findByTournamentAndCodeWithPinHash(
+    tournamentId: string,
+    code: string,
+  ): Promise<(Court & { accessPinHash: string | null }) | null> {
+    const rows = await this.db
+      .select()
+      .from(courts)
+      .where(and(eq(courts.tournamentId, tournamentId), eq(courts.code, code)))
+      .limit(1);
+    const row = rows[0];
+    if (!row) {
+      return null;
+    }
+    return { ...mapCourt(row), accessPinHash: row.accessPinHash };
   }
 
   async listByTournamentId(tournamentId: string): Promise<Court[]> {
@@ -78,6 +111,20 @@ export class DrizzleCourtRepository {
         name: input.name ?? existing.name,
         code: input.code ?? existing.code,
         active: input.active ?? existing.active,
+        updatedAt: nowIso(),
+      })
+      .where(eq(courts.id, id));
+    return this.findById(id);
+  }
+
+  async setAccessPinHash(
+    id: string,
+    accessPinHash: string | null,
+  ): Promise<Court | null> {
+    await this.db
+      .update(courts)
+      .set({
+        accessPinHash,
         updatedAt: nowIso(),
       })
       .where(eq(courts.id, id));

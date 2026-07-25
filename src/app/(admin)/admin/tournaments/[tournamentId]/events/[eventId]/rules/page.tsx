@@ -24,6 +24,24 @@ import { getDb } from "@/db/client";
 import { createMatchRuleAction } from "@/features/stages/actions";
 import { SetupTemplatesPanel } from "@/features/stages/components/setup-templates-panel";
 import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ tournamentId: string; eventId: string }>;
+}) {
+  const { tournamentId, eventId } = await params;
+  const t = await getTranslations("rules");
+  const db = getDb();
+  try {
+    await new TournamentService(db).getById(tournamentId);
+    const event = await new EventService(db).getById(eventId);
+    return pageTitle(t("title"), event.name);
+  } catch {
+    return pageTitle(t("title"));
+  }
+}
 
 export const dynamic = "force-dynamic";
 

@@ -10,6 +10,22 @@ import { TournamentService } from "@/application/services";
 import { getDb } from "@/db/client";
 import { createEventAction } from "@/features/events/actions";
 import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ tournamentId: string }>;
+}) {
+  const { tournamentId } = await params;
+  const t = await getTranslations("events");
+  try {
+    const tournament = await new TournamentService(getDb()).getById(tournamentId);
+    return pageTitle(t("new"), tournament.name);
+  } catch {
+    return pageTitle(t("new"));
+  }
+}
 
 export const dynamic = "force-dynamic";
 

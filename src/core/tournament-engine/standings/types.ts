@@ -47,12 +47,16 @@ export type SpecialResolutionPolicy = {
   setsLost: number;
   pointsWon: number;
   pointsLost: number;
+  /**
+   * When true and the match has scored sets, use those sets for aggregates
+   * instead of the award pads below (walkover/no-show/retirement).
+   */
+  includePlayedSets?: boolean;
 };
 
 export type StandingsSpecialPolicy = {
   walkover: SpecialResolutionPolicy;
   retirement: SpecialResolutionPolicy & {
-    /** When true, include actual played set scores before applying awards for remaining. */
     includePlayedSets: boolean;
   };
   disqualification: SpecialResolutionPolicy;
@@ -108,8 +112,10 @@ export const DEFAULT_SPECIAL_POLICY: StandingsSpecialPolicy = {
   walkover: {
     setsWon: 2,
     setsLost: 0,
-    pointsWon: 0,
+    /** Fallback when no sets stored: 2 × pointsToWin (21). */
+    pointsWon: 42,
     pointsLost: 0,
+    includePlayedSets: true,
   },
   retirement: {
     setsWon: 2,
@@ -127,7 +133,9 @@ export const DEFAULT_SPECIAL_POLICY: StandingsSpecialPolicy = {
   noShow: {
     setsWon: 2,
     setsLost: 0,
-    pointsWon: 0,
+    /** Fallback when no sets stored: 2 × pointsToWin (21). */
+    pointsWon: 42,
     pointsLost: 0,
+    includePlayedSets: true,
   },
 };

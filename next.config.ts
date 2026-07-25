@@ -5,7 +5,7 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  serverExternalPackages: ["better-sqlite3", "@node-rs/argon2", "exceljs"],
+  serverExternalPackages: ["pg", "@node-rs/argon2", "exceljs"],
 };
 
 export default withNextIntl(nextConfig);

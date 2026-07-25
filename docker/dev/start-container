@@ -9,6 +9,4 @@ if [ ! -f node_modules/.docker-installed ]; then
   touch node_modules/.docker-installed
 fi
 
-mkdir -p /app/data
-
 exec pnpm dev --hostname 0.0.0.0 --port "${PORT:-3000}"

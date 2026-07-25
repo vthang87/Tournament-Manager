@@ -11,12 +11,15 @@ export function ActionForm({
   children,
   submitLabel,
   className,
+  actionsClassName,
   onSuccess,
 }: {
   action: (formData: FormData) => Promise<ActionResult>;
   children: React.ReactNode;
   submitLabel?: string;
   className?: string;
+  /** Wrapper around the submit button. Default `mt-4`; use e.g. empty/`self-end` for grid rows. */
+  actionsClassName?: string;
   onSuccess?: () => void;
 }) {
   const t = useTranslations("common");
@@ -43,11 +46,11 @@ export function ActionForm({
     >
       {children}
       {error ? (
-        <p className="mt-3 text-sm text-red-600" role="alert">
+        <p className="mt-3 text-sm text-red-600 md:col-span-full" role="alert">
           {error}
         </p>
       ) : null}
-      <div className="mt-4">
+      <div className={actionsClassName ?? "mt-4"}>
         <Button type="submit" disabled={pending}>
           {pending ? t("saving") : label}
         </Button>

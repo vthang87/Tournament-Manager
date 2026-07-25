@@ -1,0 +1,61 @@
+# Portainer stack — app + PostgreSQL (build from Git repo)
+# Compose path in Portainer: docker-compose.portainer.yaml
+#
+# 1. Stacks → Add stack → Git repository
+# 2. Set compose path: docker-compose.portainer.yaml
+# 3. Add env from .env.portainer.example
+# 4. Deploy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tournament}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-tournament_manager}
+      TZ: ${TZ:-Asia/Ho_Chi_Minh}
+    volumes:
+      - tm_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-tournament} -d ${POSTGRES_DB:-tournament_manager}",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: tournament-manager:${TM_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tournament}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tournament_manager}
+      APP_URL: ${APP_URL:?set APP_URL to your public URL}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+      RUN_SEED_ON_START: ${RUN_SEED_ON_START:-false}
+      SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-admin}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+      SEED_ADMIN_DISPLAY_NAME: ${SEED_ADMIN_DISPLAY_NAME:-Admin}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  tm_pg_data:

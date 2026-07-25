@@ -109,7 +109,7 @@ export class StageService {
       );
     }
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const now = nowIso();
       const row = {
         id: createId(),
@@ -122,16 +122,16 @@ export class StageService {
         createdAt: now,
         updatedAt: now,
       };
-      tx.insert(stages).values(row).run();
+      await tx.insert(stages).values(row)
       let stageRule: StageRule | null = null;
       if (input.matchRuleId) {
-        tx.insert(stageRules)
+        await tx.insert(stageRules)
           .values({ stageId: row.id, matchRuleId: input.matchRuleId })
-          .run();
+          
         stageRule = { stageId: row.id, matchRuleId: input.matchRuleId };
       }
       const stage: Stage = { ...row };
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "stage.create",
         entityType: "stage",
@@ -162,7 +162,7 @@ export class StageService {
       }
     }
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
       const next = {
         type: input.type ?? existing.type,
@@ -170,15 +170,15 @@ export class StageService {
         format: input.format ?? existing.format,
         updatedAt,
       };
-      tx.update(stages).set(next).where(eq(stages.id, id)).run();
+      await tx.update(stages).set(next).where(eq(stages.id, id))
 
       let stageRule: StageRule | null = null;
       if (input.matchRuleId !== undefined) {
-        tx.delete(stageRules).where(eq(stageRules.stageId, id)).run();
+        await tx.delete(stageRules).where(eq(stageRules.stageId, id))
         if (input.matchRuleId) {
-          tx.insert(stageRules)
+          await tx.insert(stageRules)
             .values({ stageId: id, matchRuleId: input.matchRuleId })
-            .run();
+            
           stageRule = { stageId: id, matchRuleId: input.matchRuleId };
         }
       } else {
@@ -187,7 +187,7 @@ export class StageService {
       }
 
       const stage: Stage = { ...existing, ...next };
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "stage.update",
         entityType: "stage",
@@ -216,24 +216,24 @@ export class StageService {
       );
     }
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const now = nowIso();
       // Two-phase update to avoid unique (event_id, order_index) collisions.
       for (let i = 0; i < input.orderedStageIds.length; i++) {
         const id = input.orderedStageIds[i]!;
-        tx.update(stages)
+        await tx.update(stages)
           .set({ orderIndex: -(i + 1), updatedAt: now })
           .where(eq(stages.id, id))
-          .run();
+          
       }
       for (let i = 0; i < input.orderedStageIds.length; i++) {
         const id = input.orderedStageIds[i]!;
-        tx.update(stages)
+        await tx.update(stages)
           .set({ orderIndex: i, updatedAt: now })
           .where(eq(stages.id, id))
-          .run();
+          
       }
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "stage.reorder",
         entityType: "tournament_event",
@@ -252,10 +252,10 @@ export class StageService {
     const existing = await this.getById(id);
     await this.assertEventSetup(existing.eventId);
 
-    this.db.transaction((tx) => {
-      tx.delete(stageRules).where(eq(stageRules.stageId, id)).run();
-      tx.delete(stages).where(eq(stages.id, id)).run();
-      writeAuditLog(tx, {
+    this.db.transaction(async (tx) => {
+      await tx.delete(stageRules).where(eq(stageRules.stageId, id))
+      await tx.delete(stages).where(eq(stages.id, id))
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "stage.delete",
         entityType: "stage",
@@ -296,14 +296,14 @@ export class StageService {
     const existing = await this.getById(id);
     assertStageTransition(existing.status, toStatus);
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
-      tx.update(stages)
+      await tx.update(stages)
         .set({ status: toStatus, updatedAt })
         .where(eq(stages.id, id))
-        .run();
+        
       const updated: Stage = { ...existing, status: toStatus, updatedAt };
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: `stage.${toStatus.toLowerCase()}`,
         entityType: "stage",

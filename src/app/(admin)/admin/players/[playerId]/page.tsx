@@ -9,6 +9,22 @@ import { ClubService, PlayerService } from "@/application/services";
 import { getDb } from "@/db/client";
 import { updatePlayerAction } from "@/features/participants/actions";
 import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ playerId: string }>;
+}) {
+  const { playerId } = await params;
+  const t = await getTranslations("players");
+  try {
+    const player = await new PlayerService(getDb()).getById(playerId);
+    return pageTitle(player.displayName);
+  } catch {
+    return pageTitle(t("title"));
+  }
+}
 
 export const dynamic = "force-dynamic";
 

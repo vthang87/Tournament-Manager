@@ -12,6 +12,11 @@ export type BracketSlotView = {
   isBye: boolean;
 };
 
+export type BracketSetScoreView = {
+  scoreA: number;
+  scoreB: number;
+};
+
 export type BracketMatchView = {
   id: string;
   roundIndex: number;
@@ -19,6 +24,7 @@ export type BracketMatchView = {
   roundLabel: string;
   status: MatchRecord["status"];
   scoreText: string | null;
+  setScores: BracketSetScoreView[];
   isThirdPlace: boolean;
   slotA: BracketSlotView;
   slotB: BracketSlotView;
@@ -123,6 +129,10 @@ export function buildBracketBoardView(input: {
       }),
       status: m.status,
       scoreText: formatSetScore(sets),
+      setScores: sets
+        .slice()
+        .sort((a, b) => a.setNumber - b.setNumber)
+        .map((s) => ({ scoreA: s.scoreA, scoreB: s.scoreB })),
       isThirdPlace: m.isThirdPlace,
       slotA: slotView(
         m.entryAId,

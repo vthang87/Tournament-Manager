@@ -234,7 +234,7 @@ export class MatchGenerationService {
       );
     }
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const now = nowIso();
       const rows = toCreate.map((row) => ({
         id: createId(),
@@ -253,6 +253,7 @@ export class MatchGenerationService {
         courtId: null as string | null,
         scheduledAt: null as string | null,
         estimatedDurationMinutes: null as number | null,
+        warmupUntil: null as string | null,
         startedAt: null as string | null,
         completedAt: null as string | null,
         nextMatchId: null as string | null,
@@ -265,7 +266,7 @@ export class MatchGenerationService {
       }));
 
       if (rows.length > 0) {
-        tx.insert(matches).values(rows).run();
+        await tx.insert(matches).values(rows)
       }
 
       const created: MatchRecord[] = rows.map((row) => ({
@@ -282,23 +283,23 @@ export class MatchGenerationService {
 
       if (shouldAdvanceEvent && hasMatches) {
         assertEventTransition(event.status, "IN_PROGRESS");
-        tx.update(tournamentEvents)
+        await tx.update(tournamentEvents)
           .set({ status: "IN_PROGRESS", updatedAt: now })
           .where(eq(tournamentEvents.id, input.eventId))
-          .run();
+          
         eventAdvanced = true;
       }
 
       if (shouldActivateStage && hasMatches) {
         assertStageTransition(stage.status, "ACTIVE");
-        tx.update(stages)
+        await tx.update(stages)
           .set({ status: "ACTIVE", updatedAt: now })
           .where(eq(stages.id, input.stageId))
-          .run();
+          
         stageActivated = true;
       }
 
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "match.generate_round_robin",
         entityType: "stage",
@@ -346,7 +347,7 @@ export class MatchGenerationService {
 
     const hasScores = await this.matches.stageHasScores(input.stageId);
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const existing = tx
         .select()
         .from(matches)
@@ -354,11 +355,11 @@ export class MatchGenerationService {
         .all();
       const ids = existing.map((row) => row.id);
       if (ids.length > 0) {
-        tx.delete(matchSets).where(inArray(matchSets.matchId, ids)).run();
-        tx.delete(matches).where(eq(matches.stageId, input.stageId)).run();
+        await tx.delete(matchSets).where(inArray(matchSets.matchId, ids))
+        await tx.delete(matches).where(eq(matches.stageId, input.stageId))
       }
 
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "match.reset_stage",
         entityType: "stage",

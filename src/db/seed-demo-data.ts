@@ -253,24 +253,51 @@ async function upsertEntries(db: AppDatabase): Promise<void> {
 async function markDemoReady(db: AppDatabase): Promise<void> {
   const now = nowIso();
 
-  await db
-    .update(tournaments)
-    .set({
-      status: "DRAW",
-      description:
-        "Demo tournament: 32 men's doubles teams, 8 seeds, 4 courts. Ready to draw (8 groups × 4).",
-      updatedAt: now,
-    })
-    .where(eq(tournaments.id, SEED_IDS.tournament));
+  const [tournament] = await db
+    .select()
+    .from(tournaments)
+    .where(eq(tournaments.id, SEED_IDS.tournament))
+    .limit(1);
+  const [event] = await db
+    .select()
+    .from(tournamentEvents)
+    .where(eq(tournamentEvents.id, SEED_IDS.eventMensDoubles))
+    .limit(1);
 
-  await db
-    .update(tournamentEvents)
-    .set({
-      status: "DRAW_READY",
-      thirdPlaceMatchEnabled: true,
-      updatedAt: now,
-    })
-    .where(eq(tournamentEvents.id, SEED_IDS.eventMensDoubles));
+  // Only advance early statuses — never downgrade a live simulation.
+  if (
+    tournament &&
+    (tournament.status === "DRAFT" || tournament.status === "REGISTRATION")
+  ) {
+    await db
+      .update(tournaments)
+      .set({
+        status: "DRAW",
+        description:
+          "Demo tournament: 32 men's doubles teams, 8 seeds, 4 courts. Ready to draw (8 groups × 4).",
+        updatedAt: now,
+      })
+      .where(eq(tournaments.id, SEED_IDS.tournament));
+  }
+
+  if (event && event.status === "SETUP") {
+    await db
+      .update(tournamentEvents)
+      .set({
+        status: "DRAW_READY",
+        thirdPlaceMatchEnabled: true,
+        updatedAt: now,
+      })
+      .where(eq(tournamentEvents.id, SEED_IDS.eventMensDoubles));
+  } else if (event) {
+    await db
+      .update(tournamentEvents)
+      .set({
+        thirdPlaceMatchEnabled: true,
+        updatedAt: now,
+      })
+      .where(eq(tournamentEvents.id, SEED_IDS.eventMensDoubles));
+  }
 }
 
 export async function seedDemoTournament(db: AppDatabase): Promise<void> {

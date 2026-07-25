@@ -219,8 +219,8 @@ describe("TASK 002 audit rollback", () => {
       const user = await insertUser(db);
 
       expect(() =>
-        db.transaction((tx) => {
-          writeAuditLog(tx, {
+        db.transaction(async (tx) => {
+          await writeAuditLog(tx, {
             userId: user.id,
             action: "TEST.MUTATION",
             entityType: "tournament",
@@ -254,8 +254,8 @@ describe("TASK 002 audit rollback", () => {
     try {
       const user = await insertUser(db);
 
-      db.transaction((tx) => {
-        writeAuditLog(tx, {
+      db.transaction(async (tx) => {
+        await writeAuditLog(tx, {
           userId: user.id,
           action: "TEST.OK",
           entityType: "tournament",

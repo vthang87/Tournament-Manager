@@ -178,7 +178,7 @@ export class EntryService {
       }
     }
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const now = nowIso();
       const row = {
         id: createId(),
@@ -191,15 +191,15 @@ export class EntryService {
         createdAt: now,
         updatedAt: now,
       };
-      tx.insert(entries).values(row).run();
+      await tx.insert(entries).values(row)
       for (const member of input.members) {
-        tx.insert(entryMembers)
+        await tx.insert(entryMembers)
           .values({
             entryId: row.id,
             playerId: member.playerId,
             position: member.position,
           })
-          .run();
+          
       }
       const created: EntryWithMembers = {
         ...row,
@@ -209,7 +209,7 @@ export class EntryService {
           position: m.position,
         })),
       };
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "entry.create",
         entityType: "entry",
@@ -258,7 +258,7 @@ export class EntryService {
       }
     }
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
       const next = {
         displayName: input.displayName ?? existing.displayName,
@@ -267,18 +267,18 @@ export class EntryService {
         clubId: input.clubId !== undefined ? input.clubId : existing.clubId,
         updatedAt,
       };
-      tx.update(entries).set(next).where(eq(entries.id, id)).run();
+      await tx.update(entries).set(next).where(eq(entries.id, id))
 
       if (input.members) {
-        tx.delete(entryMembers).where(eq(entryMembers.entryId, id)).run();
+        await tx.delete(entryMembers).where(eq(entryMembers.entryId, id))
         for (const member of input.members) {
-          tx.insert(entryMembers)
+          await tx.insert(entryMembers)
             .values({
               entryId: id,
               playerId: member.playerId,
               position: member.position,
             })
-            .run();
+            
         }
       }
 
@@ -293,7 +293,7 @@ export class EntryService {
             }))
           : existing.members,
       };
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "entry.update",
         entityType: "entry",
@@ -321,10 +321,10 @@ export class EntryService {
     }
 
     if (event.status === "SETUP") {
-      this.db.transaction((tx) => {
-        tx.delete(entryMembers).where(eq(entryMembers.entryId, id)).run();
-        tx.delete(entries).where(eq(entries.id, id)).run();
-        writeAuditLog(tx, {
+      this.db.transaction(async (tx) => {
+        await tx.delete(entryMembers).where(eq(entryMembers.entryId, id))
+        await tx.delete(entries).where(eq(entries.id, id))
+        await writeAuditLog(tx, {
           userId: actor.userId,
           action: "entry.delete",
           entityType: "entry",
@@ -371,18 +371,18 @@ export class EntryService {
       );
     }
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
-      tx.update(entries)
+      await tx.update(entries)
         .set({ status, updatedAt })
         .where(eq(entries.id, id))
-        .run();
+        
       const updated: EntryWithMembers = {
         ...existing,
         status,
         updatedAt,
       };
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: `entry.${status.toLowerCase()}`,
         entityType: "entry",

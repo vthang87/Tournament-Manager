@@ -23,6 +23,7 @@ Open [http://localhost:3000/login](http://localhost:3000/login). The seed create
 - Admin user `admin` / `admin123` (Argon2-hashed; re-seed refreshes the hash)
 - Tournament `HCMC Badminton Open 2026` (slug `hcmc-badminton-open-2026`)
 - Men's Doubles event, 3 match-rule presets, 4 courts
+- Court referee PIN `1234` on all demo courts (kiosk scoring)
 
 `/admin/*` requires a signed `tm_session` cookie. Unauthenticated requests redirect to `/login`.
 
@@ -37,6 +38,14 @@ Public read-only views (no auth, no PII):
 Example after seed: [http://localhost:3000/t/hcmc-badminton-open-2026](http://localhost:3000/t/hcmc-badminton-open-2026)
 
 Sections: schedule, results, groups, standings, bracket + QR code to the same URL.
+
+Court referee scoring (PIN unlock, no admin account):
+
+```text
+{APP_URL}/r/{tournament-slug}/c/{court-code}
+```
+
+Example: [http://localhost:3000/r/hcmc-badminton-open-2026/c/C1](http://localhost:3000/r/hcmc-badminton-open-2026/c/C1) (PIN `1234` after seed). Configure PIN and copy links from Admin → Courts.
 
 Ops boards (auth required):
 
@@ -59,6 +68,10 @@ Ops boards (auth required):
 | `pnpm db:seed` | Idempotent local seed |
 
 SQLite file defaults to `./data/tournament-manager.db` (gitignored).
+
+## User guide
+
+Vietnamese ops / referee guide (court PIN scoring, match day flow): [`docs/huong-dan-su-dung.md`](docs/huong-dan-su-dung.md).
 
 ## Excel import / export
 

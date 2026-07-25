@@ -24,9 +24,29 @@ import { DrizzleGroupRepository } from "@/db/repositories/schedule-repository";
 import { generateRoundRobinMatchesAction } from "@/features/matches/actions";
 import { GenerateMatchesButton } from "@/features/matches/generate-matches-button";
 import { entryLabel, scoreLine } from "@/features/matches/match-utils";
+import { MatchupLink } from "@/features/matches/matchup-link";
+import { formatTournamentDateTime } from "@/features/scheduling/lib/timezone";
 import { matchStatusKey } from "@/i18n/status-labels";
 import { canPerform } from "@/lib/auth/policies";
 import { getCurrentUser } from "@/lib/auth/require-auth";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ tournamentId: string; eventId: string }>;
+}) {
+  const { tournamentId, eventId } = await params;
+  const t = await getTranslations("matches");
+  const db = getDb();
+  try {
+    await new TournamentService(db).getById(tournamentId);
+    const event = await new EventService(db).getById(eventId);
+    return pageTitle(t("title"), event.name);
+  } catch {
+    return pageTitle(t("title"));
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +58,6 @@ const STATUSES: MatchStatus[] = [
   "WALKOVER",
   "CANCELLED",
 ];
-
 export default async function EventMatchesPage({
   params,
   searchParams,
@@ -225,15 +244,17 @@ export default async function EventMatchesPage({
             ))}
           </Select>
         </div>
-        <Button type="submit" size="sm">
-          {tc("filter")}
-        </Button>
-        <Link
-          href={`${basePath}/matches`}
-          className="text-sm text-slate-600 underline"
-        >
-          {tc("clear")}
-        </Link>
+        <div className="flex items-end gap-3">
+          <Button type="submit" className="h-10">
+            {tc("filter")}
+          </Button>
+          <Link
+            href={`${basePath}/matches`}
+            className="inline-flex h-10 items-center text-sm text-slate-600 underline"
+          >
+            {tc("clear")}
+          </Link>
+        </div>
       </form>
 
       {matchRows.length === 0 ? (
@@ -254,12 +275,16 @@ export default async function EventMatchesPage({
                 <TableHead>{t("filterGroup")}</TableHead>
                 <TableHead>{tc("fixture")}</TableHead>
                 <TableHead>{tc("score")}</TableHead>
+                <TableHead>{t("colStarted")}</TableHead>
+                <TableHead>{t("colEnded")}</TableHead>
                 <TableHead>{tc("status")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((match) => {
                 const sets = setsByMatch.get(match.id) ?? [];
+                const labelA = entryLabel(match.entryAId, labels);
+                const labelB = entryLabel(match.entryBId, labels);
                 return (
                   <TableRow key={match.id}>
                     <TableCell className="tabular-nums">
@@ -271,16 +296,34 @@ export default async function EventMatchesPage({
                         : tc("dash")}
                     </TableCell>
                     <TableCell>
-                      <Link
+                      <MatchupLink
                         href={`${basePath}/matches/${match.id}`}
-                        className="font-medium underline"
-                      >
-                        {entryLabel(match.entryAId, labels)} {tc("vs")}{" "}
-                        {entryLabel(match.entryBId, labels)}
-                      </Link>
+                        labelA={labelA}
+                        labelB={labelB}
+                        entryAId={match.entryAId}
+                        entryBId={match.entryBId}
+                        winnerEntryId={match.winnerEntryId}
+                        vsLabel={tc("vs")}
+                      />
                     </TableCell>
                     <TableCell className="tabular-nums text-slate-600">
                       {scoreLine(sets)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums text-slate-600">
+                      {match.startedAt
+                        ? formatTournamentDateTime(
+                            match.startedAt,
+                            tournament.timezone,
+                          )
+                        : tc("dash")}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums text-slate-600">
+                      {match.completedAt
+                        ? formatTournamentDateTime(
+                            match.completedAt,
+                            tournament.timezone,
+                          )
+                        : tc("dash")}
                     </TableCell>
                     <TableCell>
                       <span className="text-xs font-medium uppercase tracking-wide text-slate-600">

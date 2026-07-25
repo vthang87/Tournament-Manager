@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { fromZonedTime } from "date-fns-tz";
 import {
+  ClubService,
   CourtService,
   EntryService,
   EventService,
@@ -16,6 +17,25 @@ import { ScheduleBoard } from "@/features/scheduling/components/schedule-board";
 import { buildTimeSlots } from "@/features/scheduling/lib/timezone";
 import { getCurrentUser } from "@/lib/auth/require-auth";
 import { canPerform } from "@/lib/auth/policies";
+import { formatClubLabel } from "@/lib/club-label";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ tournamentId: string; eventId: string }>;
+}) {
+  const { tournamentId, eventId } = await params;
+  const t = await getTranslations("schedule");
+  const db = getDb();
+  try {
+    await new TournamentService(db).getById(tournamentId);
+    const event = await new EventService(db).getById(eventId);
+    return pageTitle(t("title"), event.name);
+  } catch {
+    return pageTitle(t("title"));
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -54,16 +74,27 @@ export default async function EventSchedulePage({
     notFound();
   }
 
-  const [courts, stages, entries, scheduleService] = await Promise.all([
+  const [courts, stages, entries, clubs, scheduleService] = await Promise.all([
     new CourtService(db).listByTournament(tournamentId),
     new StageService(db).listByEvent(eventId),
     new EntryService(db).listByEvent(eventId),
+    new ClubService(db).list(),
     Promise.resolve(new ScheduleService(db)),
   ]);
 
   const matchRepo = new DrizzleMatchRepository(db);
   const matches = await matchRepo.listByEventId(eventId);
   const entryName = new Map(entries.map((e) => [e.id, e.displayName]));
+  const clubById = new Map(clubs.map((c) => [c.id, c]));
+  const entryClub = new Map(
+    entries.map((e) => {
+      const club = e.clubId ? clubById.get(e.clubId) : undefined;
+      return [
+        e.id,
+        formatClubLabel(club?.shortName, club?.name),
+      ] as const;
+    }),
+  );
   const stageName = new Map(stages.map((s) => [s.id, s.name]));
 
   const rule = await scheduleService.resolveRule(eventId);
@@ -76,9 +107,13 @@ export default async function EventSchedulePage({
   const matchDtos = matches.map((m) => {
     const a = m.entryAId ? (entryName.get(m.entryAId) ?? "?") : tc("tbd");
     const b = m.entryBId ? (entryName.get(m.entryBId) ?? "?") : tc("tbd");
+    const clubA = m.entryAId ? (entryClub.get(m.entryAId) ?? null) : null;
+    const clubB = m.entryBId ? (entryClub.get(m.entryBId) ?? null) : null;
+    const clubParts = [clubA, clubB].filter(Boolean);
     return {
       id: m.id,
       label: `${a} ${tc("vs")} ${b}`,
+      clubLabel: clubParts.length > 0 ? clubParts.join(" · ") : null,
       status: m.status,
       courtId: m.courtId,
       scheduledAt: m.scheduledAt,

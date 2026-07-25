@@ -81,7 +81,7 @@ export class EventService {
       );
     }
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const now = nowIso();
       const row = {
         id: createId(),
@@ -95,9 +95,9 @@ export class EventService {
         createdAt: now,
         updatedAt: now,
       };
-      tx.insert(tournamentEvents).values(row).run();
+      await tx.insert(tournamentEvents).values(row)
       const created: TournamentEvent = { ...row };
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "event.create",
         entityType: "tournament_event",
@@ -137,7 +137,7 @@ export class EventService {
       }
     }
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
       const next = {
         name: input.name ?? existing.name,
@@ -151,12 +151,12 @@ export class EventService {
           input.thirdPlaceMatchEnabled ?? existing.thirdPlaceMatchEnabled,
         updatedAt,
       };
-      tx.update(tournamentEvents)
+      await tx.update(tournamentEvents)
         .set(next)
         .where(eq(tournamentEvents.id, id))
-        .run();
+        
       const updated: TournamentEvent = { ...existing, ...next };
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: "event.update",
         entityType: "tournament_event",
@@ -241,18 +241,18 @@ export class EventService {
       );
     }
 
-    return this.db.transaction((tx) => {
+    return this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
-      tx.update(tournamentEvents)
+      await tx.update(tournamentEvents)
         .set({ status: toStatus, updatedAt })
         .where(eq(tournamentEvents.id, id))
-        .run();
+        
       const updated: TournamentEvent = {
         ...existing,
         status: toStatus,
         updatedAt,
       };
-      writeAuditLog(tx, {
+      await writeAuditLog(tx, {
         userId: actor.userId,
         action: `event.${toStatus.toLowerCase()}`,
         entityType: "tournament_event",

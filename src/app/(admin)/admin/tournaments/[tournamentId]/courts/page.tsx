@@ -19,7 +19,25 @@ import {
   createCourtAction,
   deleteCourtAction,
 } from "@/features/courts/actions";
+import { CourtPinControls } from "@/features/courts/court-pin-controls";
 import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ tournamentId: string }>;
+}) {
+  const { tournamentId } = await params;
+  const t = await getTranslations("courts");
+  const db = getDb();
+  try {
+    const tournament = await new TournamentService(db).getById(tournamentId);
+    return pageTitle(t("title"), tournament.name);
+  } catch {
+    return pageTitle(t("title"));
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -61,10 +79,12 @@ export default async function CourtsPage({
             {t("liveCourtBoard")}
           </Link>
         </div>
+        <p className="mt-2 max-w-2xl text-sm text-slate-600">{t("pinHelp")}</p>
       </div>
 
       <ActionForm
-        className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-3"
+        className="grid items-end gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-3"
+        actionsClassName=""
         submitLabel={t("addCourt")}
         action={createCourtAction.bind(null, tournamentId)}
       >
@@ -85,16 +105,28 @@ export default async function CourtsPage({
               <TableHead>{tc("name")}</TableHead>
               <TableHead>{tc("code")}</TableHead>
               <TableHead>{tc("active")}</TableHead>
+              <TableHead>{t("refereeAccess")}</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {courts.map((court) => (
               <TableRow key={court.id}>
-                <TableCell>{court.name}</TableCell>
-                <TableCell>{court.code}</TableCell>
-                <TableCell>{court.active ? tc("yes") : tc("no")}</TableCell>
-                <TableCell className="text-right">
+                <TableCell className="align-top">{court.name}</TableCell>
+                <TableCell className="align-top">{court.code}</TableCell>
+                <TableCell className="align-top">
+                  {court.active ? tc("yes") : tc("no")}
+                </TableCell>
+                <TableCell className="align-top">
+                  <CourtPinControls
+                    tournamentId={tournamentId}
+                    courtId={court.id}
+                    courtCode={court.code}
+                    tournamentSlug={tournament.slug}
+                    hasAccessPin={court.hasAccessPin}
+                  />
+                </TableCell>
+                <TableCell className="align-top text-right">
                   <form
                     action={async () => {
                       "use server";

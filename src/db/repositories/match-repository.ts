@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray, isNotNull, isNull, ne, or } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import type {
   CreateMatchInput,
   MatchRecord,
@@ -9,7 +9,7 @@ import type {
   MatchWithSets,
 } from "@/core/domain";
 import type { AppDatabase } from "@/db/client";
-import { matchSets, matches } from "@/db/schema";
+import { matchSets, matches, tournamentEvents } from "@/db/schema";
 import { createId, nowIso } from "@/lib/id";
 
 export function roundRobinGenerationKey(
@@ -41,6 +41,7 @@ function mapMatch(row: typeof matches.$inferSelect): MatchRecord {
     courtId: row.courtId,
     scheduledAt: row.scheduledAt,
     estimatedDurationMinutes: row.estimatedDurationMinutes,
+    warmupUntil: row.warmupUntil,
     startedAt: row.startedAt,
     completedAt: row.completedAt,
     nextMatchId: row.nextMatchId,
@@ -115,6 +116,7 @@ export class DrizzleMatchRepository {
       courtId: input.courtId ?? null,
       scheduledAt: input.scheduledAt ?? null,
       estimatedDurationMinutes: input.estimatedDurationMinutes ?? null,
+      warmupUntil: null,
       startedAt: null,
       completedAt: null,
       nextMatchId: input.nextMatchId ?? null,
@@ -153,6 +155,104 @@ export class DrizzleMatchRepository {
       return null;
     }
     return { ...match, sets: await this.listSets(id) };
+  }
+
+  async findInProgressOnCourt(
+    courtId: string,
+    excludeMatchId?: string,
+  ): Promise<MatchRecord | null> {
+    const conditions = [
+      eq(matches.courtId, courtId),
+      eq(matches.status, "IN_PROGRESS"),
+    ];
+    if (excludeMatchId) {
+      conditions.push(ne(matches.id, excludeMatchId));
+    }
+    const rows = await this.db
+      .select()
+      .from(matches)
+      .where(and(...conditions))
+      .limit(1);
+    return rows[0] ? mapMatch(rows[0]) : null;
+  }
+
+  /** Next pending/scheduled match already assigned to this court. */
+  async findNextAssignedOnCourt(courtId: string): Promise<MatchRecord | null> {
+    const rows = await this.db
+      .select()
+      .from(matches)
+      .where(
+        and(
+          eq(matches.courtId, courtId),
+          inArray(matches.status, ["PENDING", "SCHEDULED"]),
+        ),
+      )
+      .orderBy(asc(matches.scheduledAt), asc(matches.createdAt))
+      .limit(1);
+    return rows[0] ? mapMatch(rows[0]) : null;
+  }
+
+  /**
+   * Matches a court referee can claim/start: not yet started (PENDING/SCHEDULED),
+   * both sides filled, within the tournament — including matches on other courts.
+   */
+  async listSelectableForCourt(
+    tournamentId: string,
+    courtId: string,
+  ): Promise<MatchRecord[]> {
+    const rows = await this.db
+      .select({ match: matches })
+      .from(matches)
+      .innerJoin(tournamentEvents, eq(matches.eventId, tournamentEvents.id))
+      .where(
+        and(
+          eq(tournamentEvents.tournamentId, tournamentId),
+          inArray(matches.status, ["PENDING", "SCHEDULED"]),
+          isNotNull(matches.entryAId),
+          isNotNull(matches.entryBId),
+        ),
+      )
+      .orderBy(
+        // This court → unassigned → other courts.
+        sql`CASE
+          WHEN ${matches.courtId} = ${courtId} THEN 0
+          WHEN ${matches.courtId} IS NULL THEN 1
+          ELSE 2
+        END`,
+        asc(matches.scheduledAt),
+        asc(matches.createdAt),
+      )
+      .limit(60);
+    return rows.map((r) => mapMatch(r.match));
+  }
+
+  async listBusyCourtIdsForTournament(
+    tournamentId: string,
+    excludeMatchId?: string,
+  ): Promise<string[]> {
+    const conditions = [
+      eq(tournamentEvents.tournamentId, tournamentId),
+      eq(matches.status, "IN_PROGRESS"),
+      isNotNull(matches.courtId),
+    ];
+    if (excludeMatchId) {
+      conditions.push(ne(matches.id, excludeMatchId));
+    }
+    const rows = await this.db
+      .select({ courtId: matches.courtId })
+      .from(matches)
+      .innerJoin(
+        tournamentEvents,
+        eq(matches.eventId, tournamentEvents.id),
+      )
+      .where(and(...conditions));
+    return [
+      ...new Set(
+        rows
+          .map((r) => r.courtId)
+          .filter((id): id is string => typeof id === "string" && id.length > 0),
+      ),
+    ];
   }
 
   async listByStageId(stageId: string): Promise<MatchRecord[]> {

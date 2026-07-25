@@ -72,6 +72,7 @@ describe("buildBracketBoardView", () => {
       courtId: null,
       scheduledAt: null,
       estimatedDurationMinutes: null,
+      warmupUntil: null,
       startedAt: null,
       completedAt: null,
       nextMatchId: null,

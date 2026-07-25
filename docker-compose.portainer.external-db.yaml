@@ -1,0 +1,30 @@
+# Portainer stack — app only (PostgreSQL ngoài, ví dụ 192.168.0.17)
+# Compose path: docker-compose.portainer.external-db.yaml
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: tournament-manager:${TM_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      APP_URL: ${APP_URL:?set APP_URL}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+      RUN_SEED_ON_START: ${RUN_SEED_ON_START:-false}
+      SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-admin}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+      SEED_ADMIN_DISPLAY_NAME: ${SEED_ADMIN_DISPLAY_NAME:-Admin}
+      DB_WAIT_MAX_ATTEMPTS: ${DB_WAIT_MAX_ATTEMPTS:-30}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s

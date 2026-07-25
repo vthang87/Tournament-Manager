@@ -5,6 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClubAction } from "@/features/participants/actions";
 import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata() {
+  const t = await getTranslations("clubs");
+  return pageTitle(t("new"));
+}
 
 export default async function NewClubPage() {
   await requireRoleOrRedirect(["ADMIN", "OPERATOR"]);
