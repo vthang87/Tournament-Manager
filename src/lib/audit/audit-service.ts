@@ -23,7 +23,7 @@ function toJson(value: unknown): string | null {
   return JSON.stringify(value);
 }
 
-export async function await writeAuditLog(
+export async function writeAuditLog(
   db: AuditDb,
   input: WriteAuditLogInput,
 ): Promise<{ id: string }> {

@@ -228,7 +228,7 @@ export class MatchOpsService {
     return this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
       const startedAt = updatedAt;
-      const changed = tx
+      const changed = await tx
         .update(matches)
         .set({
           status: "IN_PROGRESS",
@@ -244,7 +244,7 @@ export class MatchOpsService {
           ),
         )
         
-      if ((changed.changes ?? 0) === 0) {
+      if ((changed.rowCount ?? 0) === 0) {
         throw new ConflictError(
           "Match was updated by another request; refresh and retry",
         );
@@ -322,14 +322,14 @@ export class MatchOpsService {
 
     return this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
-      const changed = tx
+      const changed = await tx
         .update(matches)
         .set({ warmupUntil, courtId, updatedAt })
         .where(
           and(eq(matches.id, matchId), eq(matches.updatedAt, before.updatedAt)),
         )
         
-      if ((changed.changes ?? 0) === 0) {
+      if ((changed.rowCount ?? 0) === 0) {
         throw new ConflictError(
           "Match was updated by another request; refresh and retry",
         );
@@ -369,14 +369,14 @@ export class MatchOpsService {
 
     return this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
-      const changed = tx
+      const changed = await tx
         .update(matches)
         .set({ warmupUntil: null, updatedAt })
         .where(
           and(eq(matches.id, matchId), eq(matches.updatedAt, before.updatedAt)),
         )
         
-      if ((changed.changes ?? 0) === 0) {
+      if ((changed.rowCount ?? 0) === 0) {
         throw new ConflictError(
           "Match was updated by another request; refresh and retry",
         );
@@ -443,14 +443,14 @@ export class MatchOpsService {
 
     return this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
-      const changed = tx
+      const changed = await tx
         .update(matches)
         .set({ entryAId, entryBId, courtId, updatedAt })
         .where(
           and(eq(matches.id, matchId), eq(matches.updatedAt, before.updatedAt)),
         )
         
-      if ((changed.changes ?? 0) === 0) {
+      if ((changed.rowCount ?? 0) === 0) {
         throw new ConflictError(
           "Match was updated by another request; refresh and retry",
         );
@@ -592,7 +592,7 @@ export class MatchOpsService {
 
     return this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
-      const changed = tx
+      const changed = await tx
         .update(matches)
         .set({ updatedAt })
         .where(
@@ -600,36 +600,35 @@ export class MatchOpsService {
             eq(matches.id, before.id),
             eq(matches.updatedAt, before.updatedAt),
           ),
-        )
-        
-      if ((changed.changes ?? 0) === 0) {
+        );
+
+      if ((changed.rowCount ?? 0) === 0) {
         throw new ConflictError(
           "Match was updated by another request; refresh and retry",
         );
       }
 
-      await tx.delete(matchSets).where(eq(matchSets.matchId, before.id))
-      const persistedSets = setRows.map((set) => {
+      await tx.delete(matchSets).where(eq(matchSets.matchId, before.id));
+      const persistedSets = [];
+      for (const set of setRows) {
         const id = createId();
-        await tx.insert(matchSets)
-          .values({
-            id,
-            matchId: before.id,
-            setNumber: set.setNumber,
-            scoreA: set.scoreA,
-            scoreB: set.scoreB,
-            winnerEntryId: set.winnerEntryId,
-          })
-          
-        return {
+        await tx.insert(matchSets).values({
           id,
           matchId: before.id,
           setNumber: set.setNumber,
           scoreA: set.scoreA,
           scoreB: set.scoreB,
           winnerEntryId: set.winnerEntryId,
-        };
-      });
+        });
+        persistedSets.push({
+          id,
+          matchId: before.id,
+          setNumber: set.setNumber,
+          scoreA: set.scoreA,
+          scoreB: set.scoreB,
+          winnerEntryId: set.winnerEntryId,
+        });
+      }
 
       const after: MatchWithSets = {
         ...before,
@@ -740,7 +739,7 @@ export class MatchOpsService {
 
     return this.db.transaction(async (tx) => {
       const updatedAt = nowIso();
-      const changed = tx
+      const changed = await tx
         .update(matches)
         .set({
           status: "CANCELLED",
@@ -756,13 +755,12 @@ export class MatchOpsService {
           ),
         )
         
-      if ((changed.changes ?? 0) === 0) {
+      if ((changed.rowCount ?? 0) === 0) {
         throw new ConflictError(
           "Match was updated by another request; refresh and retry",
         );
       }
-      await tx.delete(matchSets).where(eq(matchSets.matchId, input.matchId))
-
+      await tx.delete(matchSets).where(eq(matchSets.matchId, input.matchId));
       const after: MatchWithSets = {
         ...before,
         status: "CANCELLED",
@@ -840,7 +838,7 @@ export class MatchOpsService {
       const completedAt = updatedAt;
       const startedAt = payload.startedAt ?? before.startedAt ?? updatedAt;
 
-      const changed = tx
+      const changed = await tx
         .update(matches)
         .set({
           status: payload.status,
@@ -855,36 +853,35 @@ export class MatchOpsService {
             eq(matches.id, before.id),
             eq(matches.updatedAt, before.updatedAt),
           ),
-        )
-        
-      if ((changed.changes ?? 0) === 0) {
+        );
+
+      if ((changed.rowCount ?? 0) === 0) {
         throw new ConflictError(
           "Match was updated by another request; refresh and retry",
         );
       }
 
-      await tx.delete(matchSets).where(eq(matchSets.matchId, before.id))
-      const persistedSets = payload.sets.map((set) => {
+      await tx.delete(matchSets).where(eq(matchSets.matchId, before.id));
+      const persistedSets = [];
+      for (const set of payload.sets) {
         const id = createId();
-        await tx.insert(matchSets)
-          .values({
-            id,
-            matchId: before.id,
-            setNumber: set.setNumber,
-            scoreA: set.scoreA,
-            scoreB: set.scoreB,
-            winnerEntryId: set.winnerEntryId,
-          })
-          
-        return {
+        await tx.insert(matchSets).values({
           id,
           matchId: before.id,
           setNumber: set.setNumber,
           scoreA: set.scoreA,
           scoreB: set.scoreB,
           winnerEntryId: set.winnerEntryId,
-        };
-      });
+        });
+        persistedSets.push({
+          id,
+          matchId: before.id,
+          setNumber: set.setNumber,
+          scoreA: set.scoreA,
+          scoreB: set.scoreB,
+          winnerEntryId: set.winnerEntryId,
+        });
+      }
 
       const after: MatchWithSets = {
         ...before,

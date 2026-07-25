@@ -184,7 +184,7 @@ export class ExcelImportService {
     const createdPlayerIds: string[] = [];
     const createdClubIds: string[] = [];
 
-    this.db.transaction(async (tx) => {
+    return this.db.transaction(async (tx) => {
       const now = nowIso();
       const clubIdByName = new Map(
         [...clubByName.entries()].map(([k, v]) => [k, v.id]),
@@ -193,7 +193,9 @@ export class ExcelImportService {
         [...playerByName.entries()].map(([k, v]) => [k, v.id]),
       );
 
-      const resolveClub = (clubName: string | null): string | null => {
+      const resolveClub = async (
+        clubName: string | null,
+      ): Promise<string | null> => {
         if (!clubName) {
           return null;
         }
@@ -203,16 +205,14 @@ export class ExcelImportService {
           return existingId;
         }
         const clubId = createId();
-        await tx.insert(clubs)
-          .values({
-            id: clubId,
-            name: clubName,
-            shortName: null,
-            logoUrl: null,
-            createdAt: now,
-            updatedAt: now,
-          })
-          
+        await tx.insert(clubs).values({
+          id: clubId,
+          name: clubName,
+          shortName: null,
+          logoUrl: null,
+          createdAt: now,
+          updatedAt: now,
+        });
         createdClubIds.push(clubId);
         clubIdByName.set(key, clubId);
         await writeAuditLog(tx, {
@@ -226,32 +226,30 @@ export class ExcelImportService {
         return clubId;
       };
 
-      const resolvePlayer = (
+      const resolvePlayer = async (
         playerName: string,
         clubId: string | null,
-      ): string => {
+      ): Promise<string> => {
         const key = playerName.toLowerCase();
         const existingId = playerIdByName.get(key);
         if (existingId) {
           return existingId;
         }
         const playerId = createId();
-        await tx.insert(players)
-          .values({
-            id: playerId,
-            name: playerName,
-            displayName: playerName,
-            gender: "UNSPECIFIED",
-            dateOfBirth: null,
-            phone: null,
-            email: null,
-            clubId,
-            ranking: null,
-            metadataJson: null,
-            createdAt: now,
-            updatedAt: now,
-          })
-          
+        await tx.insert(players).values({
+          id: playerId,
+          name: playerName,
+          displayName: playerName,
+          gender: "UNSPECIFIED",
+          dateOfBirth: null,
+          phone: null,
+          email: null,
+          clubId,
+          ranking: null,
+          metadataJson: null,
+          createdAt: now,
+          updatedAt: now,
+        });
         createdPlayerIds.push(playerId);
         playerIdByName.set(key, playerId);
         await writeAuditLog(tx, {
@@ -266,11 +264,14 @@ export class ExcelImportService {
       };
 
       for (const plan of planned) {
-        const clubId = resolveClub(plan.clubName);
-        const memberIds = plan.members.map((m) => ({
-          playerId: resolvePlayer(m.playerName, clubId),
-          position: m.position,
-        }));
+        const clubId = await resolveClub(plan.clubName);
+        const memberIds = [];
+        for (const m of plan.members) {
+          memberIds.push({
+            playerId: await resolvePlayer(m.playerName, clubId),
+            position: m.position,
+          });
+        }
 
         const entryId = createId();
         const entryRow = {
@@ -284,15 +285,13 @@ export class ExcelImportService {
           createdAt: now,
           updatedAt: now,
         };
-        await tx.insert(entries).values(entryRow)
+        await tx.insert(entries).values(entryRow);
         for (const member of memberIds) {
-          await tx.insert(entryMembers)
-            .values({
-              entryId,
-              playerId: member.playerId,
-              position: member.position,
-            })
-            
+          await tx.insert(entryMembers).values({
+            entryId,
+            playerId: member.playerId,
+            position: member.position,
+          });
         }
 
         const created: EntryWithMembers = {
