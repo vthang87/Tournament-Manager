@@ -38,6 +38,10 @@ yarn-error.log*
 .env
 .env.*
 !.env.example
+!.env.docker.example
+
+# docker dev local overrides (machine-specific ports)
+docker-compose-dev.local.yaml
 
 # vercel
 .vercel

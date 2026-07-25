@@ -6,6 +6,7 @@
     "node": ">=20"
   },
   "scripts": {
+    "postinstall": "sh scripts/pnpm-docker-sync.sh || true",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

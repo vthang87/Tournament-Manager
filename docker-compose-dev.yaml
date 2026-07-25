@@ -1,0 +1,43 @@
+# Dev stack: Next.js HMR + SQLite. Không chạy production build trong container.
+# App: http://localhost:3000
+#
+# node_modules nằm trong volume Docker (Linux). Sau khi thêm package trên host:
+#   make pnpm-sync   hoặc   make pnpm-add PKG=<tên-gói>
+# (pnpm install trên host tự chạy postinstall → đồng bộ Docker nếu container đang up)
+
+services:
+  tm_app:
+    build:
+      context: .
+      dockerfile: docker/dev/Dockerfile
+    image: tournament_manager:dev
+    env_file:
+      - .env
+    networks:
+      - tm
+    volumes:
+      - .:/app
+      - tm_node_modules:/app/node_modules
+      - tm_data:/app/data
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: development
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      DATABASE_URL: ${DATABASE_URL:-/app/data/tournament-manager.db}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      SESSION_SECRET: ${SESSION_SECRET:-dev-only-change-me-to-a-long-random-string}
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+      RUN_SEED_ON_START: "false"
+
+networks:
+  tm:
+    driver: bridge
+
+volumes:
+  tm_data:
+    driver: local
+  tm_node_modules:
+    driver: local
