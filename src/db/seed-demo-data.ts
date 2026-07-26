@@ -11,10 +11,12 @@ import {
   entries,
   entryMembers,
   players,
+  playerSports,
   tournamentEvents,
   tournaments,
 } from "./schema";
 import { nowIso } from "@/lib/id";
+import { SPORT_IDS } from "@/core/domain";
 
 const CLUB_DEFS = [
   { id: "seed-club-01", name: "Sài Gòn Smashers", shortName: "SGS" },
@@ -142,6 +144,7 @@ async function upsertClubs(db: AppDatabase): Promise<void> {
 
     const values = {
       id: club.id,
+      ownerUserId: SEED_IDS.adminUser,
       name: club.name,
       shortName: club.shortName,
       logoUrl: null as string | null,
@@ -172,14 +175,13 @@ async function upsertPlayers(db: AppDatabase): Promise<void> {
 
     const values = {
       id,
+      ownerUserId: SEED_IDS.adminUser,
       name,
       displayName,
       gender: "MALE" as const,
       dateOfBirth: null as string | null,
       phone: null as string | null,
       email: null as string | null,
-      clubId,
-      ranking: i + 1,
       metadataJson: null as string | null,
       updatedAt: now,
     };
@@ -189,6 +191,20 @@ async function upsertPlayers(db: AppDatabase): Promise<void> {
     } else {
       await db.insert(players).values({ ...values, createdAt: now });
     }
+    await db
+      .insert(playerSports)
+      .values({
+        playerId: id,
+        sportId: SPORT_IDS.BADMINTON,
+        clubId,
+        ranking: i + 1,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [playerSports.playerId, playerSports.sportId],
+        set: { clubId, ranking: i + 1, updatedAt: now },
+      });
   }
 }
 

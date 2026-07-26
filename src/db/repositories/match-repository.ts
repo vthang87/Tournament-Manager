@@ -458,7 +458,7 @@ export class DrizzleMatchRepository {
     const result = await this.db
       .delete(matches)
       .where(eq(matches.stageId, stageId));
-    return result.changes ?? 0;
+    return result.rowCount ?? 0;
   }
 
   async deleteKnockoutByStage(stageId: string): Promise<number> {
@@ -471,7 +471,7 @@ export class DrizzleMatchRepository {
     let deleted = 0;
     for (const id of ids) {
       const result = await this.db.delete(matches).where(eq(matches.id, id));
-      deleted += result.changes ?? 0;
+      deleted += result.rowCount ?? 0;
     }
     return deleted;
   }

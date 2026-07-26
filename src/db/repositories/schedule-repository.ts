@@ -363,6 +363,6 @@ export class DrizzleScheduleRuleRepository {
     const result = await this.db
       .delete(scheduleRules)
       .where(eq(scheduleRules.id, id));
-    return (result.changes ?? 0) > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 }

@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import {
   EntryService,
   EventService,
   StageService,
   TournamentService,
+  TournamentAccessService,
 } from "@/application/services";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -143,7 +145,14 @@ export default async function EventMatchesPage({
   ].sort((a, b) => a - b);
 
   const user = await getCurrentUser();
-  const canDraw = user ? canPerform(user.role, "draw") : false;
+  if (!user) {
+    notFound();
+  }
+  const access = await new TournamentAccessService(db).resolve(
+    { userId: user.id, role: user.role },
+    tournamentId,
+  );
+  const canDraw = canPerform(access.role, "draw");
   const canGenerate =
     canDraw &&
     (event.status === "DRAW_CONFIRMED" || event.status === "IN_PROGRESS");
@@ -154,12 +163,11 @@ export default async function EventMatchesPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link
-            href={basePath}
-            className="text-sm text-slate-600 hover:text-slate-900"
-          >
-            ← {event.name}
-          </Link>
+          <AdminBreadcrumbs
+            tournament={{ id: tournamentId }}
+            event={{ id: eventId, name: event.name }}
+            current={t("title")}
+          />
           <h2 className="mt-2 text-2xl font-semibold tracking-tight">
             {t("title")}
           </h2>

@@ -35,7 +35,6 @@ import {
   tournamentEvents,
 } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit";
-import { assertCanPerform } from "@/lib/auth/policies";
 import { createId, nowIso } from "@/lib/id";
 import {
   confirmDrawSchema,
@@ -45,6 +44,7 @@ import {
   validateManualDrawSchema,
 } from "@/lib/validation/schemas";
 import { eq, inArray } from "drizzle-orm";
+import { TournamentAccessService } from "./tournament-access-service";
 
 export type DrawConfigurationSnapshot = DrawConfiguration & {
   groupCount: number;
@@ -77,6 +77,7 @@ export class DrawService {
   private readonly stages: DrizzleStageRepository;
   private readonly events: DrizzleTournamentEventRepository;
   private readonly tournaments: DrizzleTournamentRepository;
+  private readonly access: TournamentAccessService;
 
   constructor(private readonly db: AppDatabase) {
     this.draws = new DrizzleDrawRepository(db);
@@ -84,6 +85,7 @@ export class DrawService {
     this.stages = new DrizzleStageRepository(db);
     this.events = new DrizzleTournamentEventRepository(db);
     this.tournaments = new DrizzleTournamentRepository(db);
+    this.access = new TournamentAccessService(db);
   }
 
   async getSession(drawSessionId: string): Promise<DrawSession> {
@@ -166,8 +168,8 @@ export class DrawService {
     actor: ActorContext,
     raw: unknown,
   ): Promise<GenerateDrawResult> {
-    assertCanPerform(actor.role, "draw");
     const input = parseOrThrow(generateDrawSchema, raw);
+    await this.access.assertForEvent(actor, input.eventId, "draw");
     await this.assertEventForDraw(input.eventId);
 
     const stage = await this.stages.findById(input.stageId);
@@ -330,8 +332,12 @@ export class DrawService {
     actor: ActorContext,
     raw: unknown,
   ): Promise<DrawValidation> {
-    assertCanPerform(actor.role, "draw");
     const input = parseOrThrow(validateManualDrawSchema, raw);
+    await this.access.assertForDrawSession(
+      actor,
+      input.drawSessionId,
+      "draw",
+    );
     const session = await this.getSession(input.drawSessionId);
     if (session.status !== "DRAFT") {
       throw new DomainStateError(
@@ -380,8 +386,12 @@ export class DrawService {
     actor: ActorContext,
     raw: unknown,
   ): Promise<{ session: DrawSession; results: DrawResultRow[]; validation: DrawValidation }> {
-    assertCanPerform(actor.role, "draw");
     const input = parseOrThrow(saveManualDrawSchema, raw);
+    await this.access.assertForDrawSession(
+      actor,
+      input.drawSessionId,
+      "draw",
+    );
     const validation = await this.validateManualAdjustment(actor, raw);
     if (!validation.valid) {
       throw new ValidationError(
@@ -441,8 +451,12 @@ export class DrawService {
     actor: ActorContext,
     raw: unknown,
   ): Promise<{ session: DrawSession; groupEntries: number }> {
-    assertCanPerform(actor.role, "draw");
     const input = parseOrThrow(confirmDrawSchema, raw);
+    await this.access.assertForDrawSession(
+      actor,
+      input.drawSessionId,
+      "draw",
+    );
     const session = await this.getSession(input.drawSessionId);
     if (session.status !== "DRAFT") {
       throw new DomainStateError(
@@ -543,7 +557,7 @@ export class DrawService {
 
   /** Optional explicit lock after confirm (already LOCKED on confirm). */
   async lockDraw(actor: ActorContext, drawSessionId: string): Promise<DrawSession> {
-    assertCanPerform(actor.role, "draw");
+    await this.access.assertForDrawSession(actor, drawSessionId, "draw");
     const session = await this.getSession(drawSessionId);
     if (session.status === "LOCKED") {
       return session;

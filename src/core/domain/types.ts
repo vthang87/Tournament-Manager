@@ -1,6 +1,12 @@
 /** Shared domain types for V1 tournament management. */
 
-export type UserRole = "ADMIN" | "OPERATOR" | "SCOREKEEPER" | "VIEWER";
+export type UserRole =
+  | "SUPER_ADMIN"
+  | "ADMIN"
+  | "OPERATOR"
+  | "SCOREKEEPER"
+  | "VIEWER";
+export type TournamentMemberRole = Exclude<UserRole, "SUPER_ADMIN">;
 
 export type User = {
   id: string;
@@ -42,6 +48,8 @@ export type PlayerGender = "MALE" | "FEMALE" | "OTHER" | "UNSPECIFIED";
 
 export type Tournament = {
   id: string;
+  ownerUserId: string;
+  sportId: string;
   name: string;
   slug: string;
   description: string | null;
@@ -63,6 +71,8 @@ export type TournamentEvent = {
   status: EventStatus;
   defaultMatchRuleId: string | null;
   thirdPlaceMatchEnabled: boolean;
+  scheduleLockedAt: string | null;
+  scheduleRestMinutes: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -116,6 +126,7 @@ export type MatchRuleRecord = {
 
 export type Club = {
   id: string;
+  ownerUserId: string;
   name: string;
   shortName: string | null;
   logoUrl: string | null;
@@ -125,15 +136,32 @@ export type Club = {
 
 export type Player = {
   id: string;
+  ownerUserId: string;
   name: string;
   displayName: string;
   gender: PlayerGender;
   dateOfBirth: string | null;
   phone: string | null;
   email: string | null;
+  metadataJson: string | null;
+  sports: PlayerSportProfile[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PlayerSportProfile = {
+  playerId: string;
+  sportId: string;
   clubId: string | null;
   ranking: number | null;
-  metadataJson: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TournamentMember = {
+  tournamentId: string;
+  userId: string;
+  role: TournamentMemberRole;
   createdAt: string;
   updatedAt: string;
 };
@@ -182,6 +210,8 @@ export type DrawResultRow = {
 };
 
 export type CreateTournamentInput = {
+  ownerUserId: string;
+  sportId: string;
   name: string;
   slug: string;
   description?: string | null;
@@ -193,6 +223,7 @@ export type CreateTournamentInput = {
 };
 
 export type UpdateTournamentInput = {
+  sportId?: string;
   name?: string;
   slug?: string;
   description?: string | null;
@@ -269,6 +300,7 @@ export type UpdateMatchRuleInput = Partial<
 >;
 
 export type CreateClubInput = {
+  ownerUserId: string;
   name: string;
   shortName?: string | null;
   logoUrl?: string | null;
@@ -281,14 +313,18 @@ export type UpdateClubInput = {
 };
 
 export type CreatePlayerInput = {
+  ownerUserId: string;
   name: string;
   displayName: string;
   gender?: PlayerGender;
   dateOfBirth?: string | null;
   phone?: string | null;
   email?: string | null;
-  clubId?: string | null;
-  ranking?: number | null;
+  sports: Array<{
+    sportId: string;
+    clubId?: string | null;
+    ranking?: number | null;
+  }>;
   metadataJson?: string | null;
 };
 

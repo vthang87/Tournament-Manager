@@ -198,6 +198,34 @@ describe("generateDraw", () => {
     );
   });
 
+  it("repairs a late same-club conflict by swapping unseeded entries", () => {
+    const entries: DrawEntry[] = Array.from({ length: 32 }, (_, index) => ({
+      id: `seed-scenario-pickleball-draw-ready-entry-${String(index + 1).padStart(2, "0")}`,
+      seed: index < 8 ? index + 1 : null,
+      clubId: `pickleball-club-${index % 12}`,
+    }));
+
+    const result = generateDraw({
+      entries,
+      groups: makeGroups(8, 4),
+      configuration: {
+        seedDistribution: "NORMAL",
+        avoidSameClub: true,
+      },
+      randomSeed: "seed-1",
+    });
+
+    expect(
+      result.warnings.filter((warning) => warning.code === "DRAW_SAME_CLUB"),
+    ).toHaveLength(0);
+    for (const group of result.data.byGroup) {
+      const clubIds = group.entryIds.map(
+        (id) => entries.find((entry) => entry.id === id)!.clubId,
+      );
+      expect(new Set(clubIds).size).toBe(clubIds.length);
+    }
+  });
+
   it("emits warning when same-club is impossible to avoid", () => {
     // One group capacity 3, only one group — three from same club must cohabit.
     const entries: DrawEntry[] = [

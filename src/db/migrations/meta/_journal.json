@@ -8,6 +8,41 @@
       "when": 1784953609617,
       "tag": "0000_sad_adam_destine",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784966135052,
+      "tag": "0001_great_skaar",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784972200000,
+      "tag": "0002_super_admin_user_management",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785043501502,
+      "tag": "0003_closed_agent_zero",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785049368345,
+      "tag": "0004_fat_roland_deschain",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785050843787,
+      "tag": "0005_nebulous_lady_bullseye",
+      "breakpoints": true
     }
   ]
 }

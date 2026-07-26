@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { MatchRecord } from "@/core/domain";
 import {
   DEMO_SCENARIOS,
+  demoScheduleMinutesFromStart,
   normalScoreForMatch,
   playerName,
 } from "./seed-demo-scenarios";
@@ -52,22 +53,36 @@ function matchWithRule(
 }
 
 describe("demo scenario definitions", () => {
-  it("defines three states for each sport with unique seed namespaces", () => {
-    expect(DEMO_SCENARIOS).toHaveLength(6);
+  it("defines baseline states and the compact completed scenario", () => {
+    expect(DEMO_SCENARIOS).toHaveLength(7);
     expect(new Set(DEMO_SCENARIOS.map((scenario) => scenario.prefix)).size).toBe(
-      6,
+      7,
     );
     expect(new Set(DEMO_SCENARIOS.map((scenario) => scenario.slug)).size).toBe(
-      6,
+      7,
     );
 
     for (const sport of ["badminton", "pickleball"]) {
-      expect(
+      const states = new Set(
         DEMO_SCENARIOS.filter((scenario) => scenario.sport === sport).map(
           (scenario) => scenario.state,
         ),
-      ).toEqual(["draw-ready", "knockout-live", "completed"]);
+      );
+      expect(states).toEqual(
+        new Set(["draw-ready", "knockout-live", "completed"]),
+      );
     }
+
+    expect(
+      DEMO_SCENARIOS.find(
+        (scenario) => scenario.slug === "badminton-16-teams-completed",
+      ),
+    ).toMatchObject({
+      entryCount: 16,
+      groupCount: 4,
+      knockoutBracketSize: 8,
+      allNormalResults: true,
+    });
   });
 
   it("builds a legal one-game result for group/playoff rules", () => {
@@ -93,5 +108,23 @@ describe("demo scenario definitions", () => {
         expect(name.trim().length).toBeGreaterThan(0);
       }
     }
+  });
+
+  it("schedules knockout only after every group match has finished", () => {
+    const scenario = DEMO_SCENARIOS.find(
+      (item) => item.prefix === "seed-scenario-badminton-knockout-live",
+    )!;
+    const lastGroupStart = demoScheduleMinutesFromStart(
+      scenario,
+      47,
+      "group",
+    );
+    const firstKnockoutStart = demoScheduleMinutesFromStart(
+      scenario,
+      0,
+      "knockout",
+    );
+
+    expect(firstKnockoutStart).toBeGreaterThan(lastGroupStart + 35);
   });
 });

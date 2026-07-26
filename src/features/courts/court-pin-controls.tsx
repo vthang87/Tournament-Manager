@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { Check, Copy, Eye, EyeOff } from "lucide-react";
 import QRCode from "qrcode";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -24,6 +25,17 @@ function pinStorageKey(courtId: string) {
   return `tm.courtPin.${courtId}`;
 }
 
+function courtAccessUrl(
+  origin: string,
+  publicPath: string,
+  accessToken: string | null,
+) {
+  const baseUrl = `${origin}${publicPath}`;
+  return accessToken
+    ? `${baseUrl}#access=${encodeURIComponent(accessToken)}`
+    : baseUrl;
+}
+
 function readStoredPin(courtId: string): string | null {
   if (typeof window === "undefined") return null;
   try {
@@ -40,24 +52,29 @@ export function CourtPinControls({
   courtCode,
   tournamentSlug,
   hasAccessPin,
+  accessPin,
+  accessToken,
 }: {
   tournamentId: string;
   courtId: string;
   courtCode: string;
   tournamentSlug: string;
   hasAccessPin: boolean;
+  accessPin: string | null;
+  accessToken: string | null;
 }) {
   const t = useTranslations("courts");
   const router = useRouter();
-  const [pin, setPin] = useState(() => readStoredPin(courtId) ?? "");
+  const initialPin = accessPin ?? readStoredPin(courtId);
+  const [pin, setPin] = useState(() => initialPin ?? "");
   const [knownPin, setKnownPin] = useState<string | null>(() =>
-    hasAccessPin ? readStoredPin(courtId) : null,
+    hasAccessPin ? initialPin : null,
   );
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [copied, setCopied] = useState<"link" | "pin" | null>(null);
-  const [showPin, setShowPin] = useState(() => Boolean(readStoredPin(courtId)));
+  const [showPin, setShowPin] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [absoluteUrl, setAbsoluteUrl] = useState("");
@@ -68,7 +85,7 @@ export function CourtPinControls({
   function rememberPin(value: string) {
     setKnownPin(value);
     setPin(value);
-    setShowPin(true);
+    setShowPin(false);
     try {
       sessionStorage.setItem(pinStorageKey(courtId), value);
     } catch {
@@ -89,7 +106,15 @@ export function CourtPinControls({
 
   async function openQr() {
     setError(null);
-    const url = `${window.location.origin}${publicPath}`;
+    if (!hasAccessPin || !accessToken) {
+      setError(t("pinRequiredForPublic"));
+      return;
+    }
+    const url = courtAccessUrl(
+      window.location.origin,
+      publicPath,
+      accessToken,
+    );
     setAbsoluteUrl(url);
     try {
       const dataUrl = await QRCode.toDataURL(url, {
@@ -124,13 +149,27 @@ export function CourtPinControls({
           type="button"
           size="sm"
           variant="outline"
+          disabled={!hasAccessPin || !accessToken}
           onClick={() =>
-            void copyText(`${window.location.origin}${publicPath}`, "link")
+            void copyText(
+              courtAccessUrl(
+                window.location.origin,
+                publicPath,
+                accessToken,
+              ),
+              "link",
+            )
           }
         >
           {copied === "link" ? t("copied") : t("copyLink")}
         </Button>
-        <Button type="button" size="sm" variant="outline" onClick={() => void openQr()}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={!hasAccessPin || !accessToken}
+          onClick={() => void openQr()}
+        >
           {t("showQr")}
         </Button>
         <span
@@ -144,44 +183,58 @@ export function CourtPinControls({
         </span>
       </div>
 
-      {quickPin ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5">
-          <span className="text-xs font-medium text-emerald-800">
-            {t("quickPin")}
-          </span>
-          <code className="text-base font-semibold tabular-nums tracking-[0.2em] text-emerald-900">
-            {quickPin}
-          </code>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-7"
-            onClick={() => void copyText(quickPin, "pin")}
-          >
-            {copied === "pin" ? t("copied") : t("copyPin")}
-          </Button>
-        </div>
-      ) : null}
-
       <div className="flex flex-wrap items-end gap-2">
         <div className="space-y-1">
           <Label htmlFor={`pin-${courtId}`} className="text-xs">
             {t("pinLabel")}
           </Label>
-          <Input
-            id={`pin-${courtId}`}
-            type={showPin ? "text" : "password"}
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={6}
-            className="h-8 w-28 tabular-nums tracking-wider"
-            value={pin}
-            placeholder={t("pinPlaceholder")}
-            onChange={(e) =>
-              setPin(e.target.value.replace(/\D/g, "").slice(0, 6))
-            }
-          />
+          <div className="flex items-center">
+            <Input
+              id={`pin-${courtId}`}
+              type={showPin ? "text" : "password"}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={6}
+              className="relative z-10 h-8 w-28 rounded-r-none tabular-nums tracking-wider focus-visible:z-20"
+              value={pin}
+              placeholder={t("pinPlaceholder")}
+              onChange={(e) =>
+                setPin(e.target.value.replace(/\D/g, "").slice(0, 6))
+              }
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 w-8 rounded-none border-l-0 px-0"
+              disabled={!pin}
+              aria-label={showPin ? t("hidePin") : t("showPin")}
+              title={showPin ? t("hidePin") : t("showPin")}
+              onClick={() => setShowPin((current) => !current)}
+            >
+              {showPin ? (
+                <EyeOff aria-hidden="true" className="size-4" />
+              ) : (
+                <Eye aria-hidden="true" className="size-4" />
+              )}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 w-8 rounded-l-none border-l-0 px-0"
+              disabled={!pin}
+              aria-label={copied === "pin" ? t("copied") : t("copyPin")}
+              title={copied === "pin" ? t("copied") : t("copyPin")}
+              onClick={() => void copyText(pin, "pin")}
+            >
+              {copied === "pin" ? (
+                <Check aria-hidden="true" className="size-4 text-emerald-600" />
+              ) : (
+                <Copy aria-hidden="true" className="size-4" />
+              )}
+            </Button>
+          </div>
         </div>
         <Button
           type="button"
@@ -191,7 +244,7 @@ export function CourtPinControls({
           onClick={() => {
             const next = randomCourtPin();
             setPin(next);
-            setShowPin(true);
+            setShowPin(false);
             setError(null);
             setMessage(t("pinGenerated", { pin: next }));
           }}
@@ -294,7 +347,9 @@ export function CourtPinControls({
               {t("pinHiddenHint")}
             </p>
           ) : (
-            <p className="text-center text-xs text-amber-700">{t("pinDisabled")}</p>
+            <p className="text-center text-xs text-amber-700">
+              {t("pinDisabled")}
+            </p>
           )}
           <div className="flex w-full flex-wrap gap-2">
             <Button
@@ -324,7 +379,11 @@ export function CourtPinControls({
               type="button"
               className="flex-1"
               onClick={() => {
-                window.open(publicPath, "_blank", "noopener,noreferrer");
+                window.open(
+                  absoluteUrl || publicPath,
+                  "_blank",
+                  "noopener,noreferrer",
+                );
               }}
             >
               {t("openLink")}

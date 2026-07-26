@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import {
   EntryService,
   EventService,
   TournamentService,
+  TournamentAccessService,
   CourtService,
   createMatchOpsService,
 } from "@/application/services";
@@ -15,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import { DrizzleGroupRepository } from "@/db/repositories/schedule-repository";
 import { DrizzleMatchRepository } from "@/db/repositories/match-repository";
 import { getDb } from "@/db/client";
@@ -134,8 +135,15 @@ export default async function MatchDetailPage({
   }
 
   const user = await getCurrentUser();
-  const canScore = user ? canPerform(user.role, "score") : false;
-  const canCorrect = user ? canPerform(user.role, "correct") : false;
+  if (!user) {
+    notFound();
+  }
+  const access = await new TournamentAccessService(db).resolve(
+    { userId: user.id, role: user.role },
+    tournamentId,
+  );
+  const canScore = canPerform(access.role, "score");
+  const canCorrect = canPerform(access.role, "correct");
 
   const basePath = `/admin/tournaments/${tournamentId}/events/${eventId}`;
   const bothSides = Boolean(match.entryAId && match.entryBId);
@@ -143,12 +151,12 @@ export default async function MatchDetailPage({
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <Link
-          href={`${basePath}/matches`}
-          className="text-sm text-slate-600 hover:text-slate-900"
-        >
-          {t("backToMatches")}
-        </Link>
+        <AdminBreadcrumbs
+          tournament={{ id: tournamentId, name: tournament.name }}
+          event={{ id: eventId, name: event.name }}
+          items={[{ href: `${basePath}/matches`, label: t("title") }]}
+          current={`${labelA} ${tc("vs")} ${labelB}`}
+        />
         <h2 className="mt-2 text-2xl font-semibold tracking-tight">
           {labelA} {tc("vs")} {labelB}
         </h2>

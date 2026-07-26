@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import { fromZonedTime } from "date-fns-tz";
 import {
   ClubService,
@@ -9,6 +10,7 @@ import {
   EventService,
   ScheduleService,
   StageService,
+  TournamentAccessService,
   TournamentService,
 } from "@/application/services";
 import { getDb } from "@/db/client";
@@ -74,11 +76,16 @@ export default async function EventSchedulePage({
     notFound();
   }
 
+  const user = await getCurrentUser();
+  if (!user) {
+    notFound();
+  }
+  const actor = { userId: user.id, role: user.role };
   const [courts, stages, entries, clubs, scheduleService] = await Promise.all([
     new CourtService(db).listByTournament(tournamentId),
     new StageService(db).listByEvent(eventId),
     new EntryService(db).listByEvent(eventId),
-    new ClubService(db).list(),
+    new ClubService(db).listForTournament(actor, tournamentId),
     Promise.resolve(new ScheduleService(db)),
   ]);
 
@@ -99,10 +106,37 @@ export default async function EventSchedulePage({
 
   const rule = await scheduleService.resolveRule(eventId);
   const { startUtc, endUtc } = resolveDayWindowUtc(tournament);
-  const timeSlots = buildTimeSlots(startUtc, endUtc, 30);
+  const scheduledDurations = new Set(
+    matches
+      .filter((match) => match.scheduledAt)
+      .map(
+        (match) =>
+          match.estimatedDurationMinutes ?? rule.defaultMatchDurationMinutes,
+      ),
+  );
+  const onlyDuration =
+    scheduledDurations.size === 1 ? [...scheduledDurations][0] : undefined;
+  const configuredGridMinutes =
+    (onlyDuration ?? rule.defaultMatchDurationMinutes) +
+    event.scheduleRestMinutes;
+  const gridMinutes =
+    configuredGridMinutes > 0 && configuredGridMinutes <= 120
+      ? configuredGridMinutes
+      : 30;
+  const timeSlots = [
+    ...new Set([
+      ...buildTimeSlots(startUtc, endUtc, gridMinutes),
+      ...matches.flatMap((match) =>
+        match.scheduledAt ? [match.scheduledAt] : [],
+      ),
+    ]),
+  ].sort((left, right) => Date.parse(left) - Date.parse(right));
 
-  const user = await getCurrentUser();
-  const canSchedule = user ? canPerform(user.role, "schedule") : false;
+  const access = await new TournamentAccessService(db).resolve(
+    actor,
+    tournamentId,
+  );
+  const canSchedule = canPerform(access.role, "schedule");
 
   const matchDtos = matches.map((m) => {
     const a = m.entryAId ? (entryName.get(m.entryAId) ?? "?") : tc("tbd");
@@ -112,6 +146,7 @@ export default async function EventSchedulePage({
     const clubParts = [clubA, clubB].filter(Boolean);
     return {
       id: m.id,
+      stageId: m.stageId,
       label: `${a} ${tc("vs")} ${b}`,
       clubLabel: clubParts.length > 0 ? clubParts.join(" · ") : null,
       status: m.status,
@@ -119,18 +154,19 @@ export default async function EventSchedulePage({
       scheduledAt: m.scheduledAt,
       estimatedDurationMinutes: m.estimatedDurationMinutes,
       stageName: stageName.get(m.stageId) ?? tc("stage"),
+      schedulable:
+        ["PENDING", "SCHEDULED"].includes(m.status) &&
+        Boolean(m.entryAId && m.entryBId),
     };
   });
-
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href={`/admin/tournaments/${tournamentId}/events/${eventId}`}
-          className="text-sm text-slate-600 hover:text-slate-900"
-        >
-          ← {event.name}
-        </Link>
+        <AdminBreadcrumbs
+          tournament={{ id: tournamentId }}
+          event={{ id: eventId, name: event.name }}
+          current={t("title")}
+        />
         <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-2xl font-semibold tracking-tight">
@@ -145,6 +181,12 @@ export default async function EventSchedulePage({
             </p>
           </div>
           <div className="flex flex-wrap gap-2 text-sm">
+            <Link
+              href={`/admin/tournaments/${tournamentId}/events/${eventId}/schedule/print`}
+              className="rounded-md border border-slate-200 bg-white px-3 py-1.5 hover:bg-slate-50"
+            >
+              {t("printSchedule")}
+            </Link>
             <Link
               href={`/admin/tournaments/${tournamentId}/schedule`}
               className="rounded-md border border-slate-200 bg-white px-3 py-1.5 hover:bg-slate-50"
@@ -173,6 +215,12 @@ export default async function EventSchedulePage({
         </div>
       ) : (
         <ScheduleBoard
+          key={matchDtos
+            .map(
+              (match) =>
+                `${match.id}:${match.courtId ?? ""}:${match.scheduledAt ?? ""}`,
+            )
+            .join("|")}
           tournamentId={tournamentId}
           eventId={eventId}
           timeZone={tournament.timezone}
@@ -182,10 +230,18 @@ export default async function EventSchedulePage({
             code: c.code,
             active: c.active,
           }))}
+          stages={stages.map((stage) => ({
+            id: stage.id,
+            name: stage.name,
+            orderIndex: stage.orderIndex,
+            status: stage.status,
+          }))}
           matches={matchDtos}
           timeSlots={timeSlots}
           defaultDurationMinutes={rule.defaultMatchDurationMinutes}
+          defaultRestMinutes={event.scheduleRestMinutes}
           canSchedule={canSchedule}
+          scheduleLocked={Boolean(event.scheduleLockedAt)}
           matchDetailBase={`/admin/tournaments/${tournamentId}/events/${eventId}/matches`}
         />
       )}

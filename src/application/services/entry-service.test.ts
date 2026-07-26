@@ -80,9 +80,9 @@ describe("TASK 005 club/player/entry services", () => {
       ranking: 10,
     });
 
-    const foundClubs = await clubs.list("Smash");
+    const foundClubs = await clubs.list(admin, "Smash");
     expect(foundClubs).toHaveLength(1);
-    const foundPlayers = await players.list("Nguyen");
+    const foundPlayers = await players.list(admin, "Nguyen");
     expect(foundPlayers[0]?.id).toBe(player.id);
 
     await expect(

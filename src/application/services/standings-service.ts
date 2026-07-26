@@ -20,11 +20,11 @@ import {
   DrizzleStandingRuleRepository,
 } from "@/db/repositories/schedule-repository";
 import { writeAuditLog } from "@/lib/audit";
-import { assertCanPerform } from "@/lib/auth/policies";
 import {
   createStandingRuleSchema,
   parseOrThrow,
 } from "@/lib/validation/schemas";
+import { TournamentAccessService } from "./tournament-access-service";
 
 export type StandingsResult = {
   groupId: string | null;
@@ -64,19 +64,21 @@ export class StandingsService {
   private readonly matches: DrizzleMatchRepository;
   private readonly groups: DrizzleGroupRepository;
   private readonly standingRules: DrizzleStandingRuleRepository;
+  private readonly access: TournamentAccessService;
 
   constructor(private readonly db: AppDatabase) {
     this.matches = new DrizzleMatchRepository(db);
     this.groups = new DrizzleGroupRepository(db);
     this.standingRules = new DrizzleStandingRuleRepository(db);
+    this.access = new TournamentAccessService(db);
   }
 
   async createStandingRule(
     actor: ActorContext,
     raw: unknown,
   ): Promise<StandingRuleRecord> {
-    assertCanPerform(actor.role, "setup");
     const input = parseOrThrow(createStandingRuleSchema, raw);
+    await this.access.assertForEvent(actor, input.eventId, "setup");
     const criteria = input.criteria.map((c) =>
       standingCriterionSchema.parse(c),
     );

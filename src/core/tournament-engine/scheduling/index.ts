@@ -5,6 +5,8 @@ export {
   parseInterval,
 } from "./intervals";
 export { validateSchedule } from "./validate-schedule";
+export { generateBulkSchedule } from "./generate-bulk-schedule";
+export type { GenerateBulkScheduleInput } from "./generate-bulk-schedule";
 export { SchedulingErrorCode } from "./errors";
 export type { SchedulingErrorCode as SchedulingErrorCodeType } from "./errors";
 export {

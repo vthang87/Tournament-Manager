@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import { ActionForm } from "@/components/shared/action-form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -50,15 +50,22 @@ export default async function MatchRulesPage({
 }: {
   params: Promise<{ tournamentId: string; eventId: string }>;
 }) {
-  await requireRoleOrRedirect(["ADMIN"]);
+  await requireRoleOrRedirect([
+    "SUPER_ADMIN",
+    "ADMIN",
+    "OPERATOR",
+    "SCOREKEEPER",
+    "VIEWER",
+  ]);
   const { tournamentId, eventId } = await params;
   const db = getDb();
   const t = await getTranslations("rules");
   const tc = await getTranslations("common");
 
   let event;
+  let tournament;
   try {
-    await new TournamentService(db).getById(tournamentId);
+    tournament = await new TournamentService(db).getById(tournamentId);
     event = await new EventService(db).getById(eventId);
   } catch {
     notFound();
@@ -72,12 +79,11 @@ export default async function MatchRulesPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href={`/admin/tournaments/${tournamentId}/events/${eventId}`}
-          className="text-sm text-slate-600 hover:text-slate-900"
-        >
-          ← {event.name}
-        </Link>
+        <AdminBreadcrumbs
+          tournament={{ id: tournamentId }}
+          event={{ id: eventId, name: event.name }}
+          current={t("title")}
+        />
         <h2 className="mt-2 text-2xl font-semibold tracking-tight">
           {t("title")}
         </h2>
@@ -89,8 +95,8 @@ export default async function MatchRulesPage({
           eventId={eventId}
           hasStages={stageCount > 0}
           mode="rules"
-          templates={setup.listSetupTemplates()}
-          rulePresets={setup.listRulePresets()}
+          templates={setup.listSetupTemplates(tournament.sportId)}
+          rulePresets={setup.listRulePresets(tournament.sportId)}
         />
       ) : null}
 

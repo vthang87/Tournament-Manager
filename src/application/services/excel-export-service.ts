@@ -19,7 +19,7 @@ import {
 import { buildWorkbook } from "@/features/import-export/excel-workbook";
 import { EXPORT_MAX_ROWS } from "@/features/import-export/limits";
 import { escapeExcelCell } from "@/features/import-export/sanitize";
-import { assertCanPerform } from "@/lib/auth/policies";
+import { TournamentAccessService } from "./tournament-access-service";
 
 export type ExportKind =
   | "Participants"
@@ -40,6 +40,7 @@ export class ExcelExportService {
   private readonly groups: DrizzleGroupRepository;
   private readonly standings: StandingsService;
   private readonly publicView: PublicViewService;
+  private readonly access: TournamentAccessService;
 
   constructor(private readonly db: AppDatabase) {
     this.tournaments = new DrizzleTournamentRepository(db);
@@ -53,6 +54,7 @@ export class ExcelExportService {
     this.groups = new DrizzleGroupRepository(db);
     this.standings = new StandingsService(db);
     this.publicView = new PublicViewService(db);
+    this.access = new TournamentAccessService(db);
   }
 
   async exportEventWorkbook(
@@ -60,7 +62,7 @@ export class ExcelExportService {
     eventId: string,
     kind: ExportKind,
   ): Promise<{ filename: string; buffer: Buffer }> {
-    assertCanPerform(actor.role, "view");
+    await this.access.assertForEvent(actor, eventId, "view");
     const event = await this.events.findById(eventId);
     if (!event) {
       throw new NotFoundError(`Event ${eventId} not found`);
@@ -70,7 +72,12 @@ export class ExcelExportService {
       throw new NotFoundError(`Tournament ${event.tournamentId} not found`);
     }
 
-    const buffer = await this.buildForEvent(event.id, event.name, kind);
+    const buffer = await this.buildForEvent(
+      event.id,
+      event.name,
+      tournament.ownerUserId,
+      kind,
+    );
     return {
       filename: `${kind}-${event.name.replace(/[^\w.-]+/g, "_")}.xlsx`,
       buffer,
@@ -82,7 +89,7 @@ export class ExcelExportService {
     tournamentId: string,
     kind: ExportKind,
   ): Promise<{ filename: string; buffer: Buffer }> {
-    assertCanPerform(actor.role, "view");
+    await this.access.assert(actor, tournamentId, "view");
     const tournament = await this.tournaments.findById(tournamentId);
     if (!tournament) {
       throw new NotFoundError(`Tournament ${tournamentId} not found`);
@@ -99,9 +106,10 @@ export class ExcelExportService {
   private async buildForEvent(
     eventId: string,
     eventName: string,
+    ownerUserId: string,
     kind: ExportKind,
   ): Promise<Buffer> {
-    const clubs = await this.clubs.list();
+    const clubs = await this.clubs.list(ownerUserId);
     const clubName = new Map(clubs.map((c) => [c.id, c.name]));
     const entryList = await this.entries.listByEventId(eventId);
     const entryName = new Map(entryList.map((e) => [e.id, e.displayName]));

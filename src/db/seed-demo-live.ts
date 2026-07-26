@@ -14,7 +14,7 @@ import {
 import { addMinutesIso } from "@/core/tournament-engine/scheduling";
 import type { AppDatabase } from "./client";
 import { SEED_IDS } from "./seed-ids";
-import { matches, tournamentEvents, tournaments } from "./schema";
+import { matches, matchSets, tournamentEvents, tournaments } from "./schema";
 import { nowIso } from "@/lib/id";
 
 const admin: ActorContext = {
@@ -184,37 +184,47 @@ export async function seedDemoLiveSimulation(db: AppDatabase): Promise<void> {
   });
 
   // 4) Live snapshot: a few IN_PROGRESS, many COMPLETED, rest stay SCHEDULED.
-  const liveCount = Math.min(4, sorted.length);
-  const completeCount = Math.min(
-    Math.max(24, Math.floor(sorted.length * 0.45)),
-    Math.max(0, sorted.length - liveCount),
-  );
-
-  const liveIds = sorted.slice(0, liveCount);
-  const completeIds = sorted.slice(liveCount, liveCount + completeCount);
-
-  for (const match of liveIds) {
-    let current =
-      match.status === "PENDING" || match.status === "SCHEDULED"
-        ? await matchOps.startMatch(admin, match.id)
-        : await matchOps.getById(match.id);
-    if (current.status === "IN_PROGRESS" && current.sets.length === 0) {
-      // Mid-match sample score for the live board (set 1 in progress).
-      const offset = liveIds.indexOf(match);
-      await matchOps.saveLiveScore(admin, {
-        matchId: current.id,
-        sets: [
-          {
-            setNumber: 1,
-            scoreA: 11 + (offset % 8),
-            scoreB: 9 + ((offset * 3) % 7),
-          },
-        ],
-        expectedUpdatedAt: current.updatedAt,
-      });
-    }
+  // Clear leftover IN_PROGRESS from partial seeds so courts are free to rebuild.
+  const inProgressIds = sorted
+    .filter((m) => m.status === "IN_PROGRESS")
+    .map((m) => m.id);
+  if (inProgressIds.length > 0) {
+    await db.delete(matchSets).where(inArray(matchSets.matchId, inProgressIds));
+    await db
+      .update(matches)
+      .set({
+        status: "SCHEDULED",
+        startedAt: null,
+        completedAt: null,
+        winnerEntryId: null,
+        resolution: null,
+        updatedAt: nowIso(),
+      })
+      .where(inArray(matches.id, inProgressIds));
   }
 
+  const refreshed = await db
+    .select()
+    .from(matches)
+    .where(eq(matches.eventId, SEED_IDS.eventMensDoubles));
+  const snapshot = [...refreshed].sort((a, b) => {
+    if (a.roundNumber !== b.roundNumber) {
+      return a.roundNumber - b.roundNumber;
+    }
+    return (a.scheduledAt ?? "").localeCompare(b.scheduledAt ?? "");
+  });
+
+  const liveCount = Math.min(4, snapshot.length);
+  const completeCount = Math.min(
+    Math.max(24, Math.floor(snapshot.length * 0.45)),
+    Math.max(0, snapshot.length - liveCount),
+  );
+
+  const liveIds = snapshot.slice(0, liveCount);
+  const completeIds = snapshot.slice(liveCount, liveCount + completeCount);
+
+  // Finish completed matches first. Starting live matches before this leaves
+  // their courts busy, so later startMatch() calls hit COURT_BUSY.
   let scoreIndex = 0;
   for (const match of completeIds) {
     if (
@@ -237,6 +247,28 @@ export async function seedDemoLiveSimulation(db: AppDatabase): Promise<void> {
       });
     }
     scoreIndex += 1;
+  }
+
+  for (const match of liveIds) {
+    const current =
+      match.status === "PENDING" || match.status === "SCHEDULED"
+        ? await matchOps.startMatch(admin, match.id)
+        : await matchOps.getById(match.id);
+    if (current.status === "IN_PROGRESS" && current.sets.length === 0) {
+      // Mid-match sample score for the live board (set 1 in progress).
+      const offset = liveIds.indexOf(match);
+      await matchOps.saveLiveScore(admin, {
+        matchId: current.id,
+        sets: [
+          {
+            setNumber: 1,
+            scoreA: 11 + (offset % 8),
+            scoreB: 9 + ((offset * 3) % 7),
+          },
+        ],
+        expectedUpdatedAt: current.updatedAt,
+      });
+    }
   }
 
   // 5) Mark tournament live for public/live boards.

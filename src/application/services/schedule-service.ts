@@ -1,5 +1,6 @@
 import {
   ConflictError,
+  DomainStateError,
   NotFoundError,
   ValidationError,
 } from "@/application/errors";
@@ -12,6 +13,7 @@ import { assertTournamentNotArchived } from "@/core/domain/state-machines";
 import { DomainError } from "@/core/tournament-engine/errors";
 import {
   addMinutesIso,
+  generateBulkSchedule,
   validateSchedule,
   type ScheduleAssignment,
   type ScheduleConflict,
@@ -26,9 +28,11 @@ import { DrizzleMatchRepository } from "@/db/repositories/match-repository";
 import { DrizzleScheduleRuleRepository } from "@/db/repositories/schedule-repository";
 import { DrizzleTournamentEventRepository } from "@/db/repositories/tournament-event-repository";
 import { DrizzleTournamentRepository } from "@/db/repositories/tournament-repository";
-import { matches as matchesTable } from "@/db/schema";
+import {
+  matches as matchesTable,
+  tournamentEvents as tournamentEventsTable,
+} from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit";
-import { assertCanPerform } from "@/lib/auth/policies";
 import { nowIso } from "@/lib/id";
 import {
   bulkAssignSchema,
@@ -38,6 +42,7 @@ import {
   updateScheduleRuleSchema,
 } from "@/lib/validation/schemas";
 import { eq } from "drizzle-orm";
+import { TournamentAccessService } from "./tournament-access-service";
 
 function toEngineRule(record: ScheduleRuleRecord): ScheduleRule {
   return {
@@ -52,6 +57,7 @@ function toEngineRule(record: ScheduleRuleRecord): ScheduleRule {
  * Schedule rule CRUD, validation, and assignment persistence.
  */
 export class ScheduleService {
+  private readonly access: TournamentAccessService;
   private readonly scheduleRules: DrizzleScheduleRuleRepository;
   private readonly matches: DrizzleMatchRepository;
   private readonly courts: DrizzleCourtRepository;
@@ -60,6 +66,7 @@ export class ScheduleService {
   private readonly tournaments: DrizzleTournamentRepository;
 
   constructor(private readonly db: AppDatabase) {
+    this.access = new TournamentAccessService(db);
     this.scheduleRules = new DrizzleScheduleRuleRepository(db);
     this.matches = new DrizzleMatchRepository(db);
     this.courts = new DrizzleCourtRepository(db);
@@ -72,8 +79,8 @@ export class ScheduleService {
     actor: ActorContext,
     raw: unknown,
   ): Promise<ScheduleRuleRecord> {
-    assertCanPerform(actor.role, "schedule");
     const input = parseOrThrow(createScheduleRuleSchema, raw);
+    await this.access.assertForEvent(actor, input.eventId, "schedule");
     const event = await this.events.findById(input.eventId);
     if (!event) {
       throw new NotFoundError(`Event ${input.eventId} not found`);
@@ -93,7 +100,7 @@ export class ScheduleService {
       hardRestConflicts: input.hardRestConflicts,
     });
 
-    this.db.transaction(async (tx) => {
+    await this.db.transaction(async (tx) => {
       await writeAuditLog(tx, {
         userId: actor.userId,
         action: "schedule_rule.create",
@@ -111,17 +118,17 @@ export class ScheduleService {
     id: string,
     raw: unknown,
   ): Promise<ScheduleRuleRecord> {
-    assertCanPerform(actor.role, "schedule");
     const input = parseOrThrow(updateScheduleRuleSchema, raw);
     const existing = await this.scheduleRules.findById(id);
     if (!existing) {
       throw new NotFoundError(`Schedule rule ${id} not found`);
     }
+    await this.access.assertForEvent(actor, existing.eventId, "schedule");
     const updated = await this.scheduleRules.update(id, input);
     if (!updated) {
       throw new NotFoundError(`Schedule rule ${id} not found`);
     }
-    this.db.transaction(async (tx) => {
+    await this.db.transaction(async (tx) => {
       await writeAuditLog(tx, {
         userId: actor.userId,
         action: "schedule_rule.update",
@@ -135,11 +142,11 @@ export class ScheduleService {
   }
 
   async deleteRule(actor: ActorContext, id: string): Promise<void> {
-    assertCanPerform(actor.role, "schedule");
     const existing = await this.scheduleRules.findById(id);
     if (!existing) {
       throw new NotFoundError(`Schedule rule ${id} not found`);
     }
+    await this.access.assertForEvent(actor, existing.eventId, "schedule");
     await this.scheduleRules.delete(id);
     this.db.transaction(async (tx) => {
       await writeAuditLog(tx, {
@@ -240,11 +247,17 @@ export class ScheduleService {
     updated: MatchRecord[];
     conflicts: ScheduleConflict[];
   }> {
-    assertCanPerform(actor.role, "schedule");
     const input = parseOrThrow(saveAssignmentsSchema, raw);
+    await this.access.assertForEvent(actor, input.eventId, "schedule");
     const event = await this.events.findById(input.eventId);
     if (!event) {
       throw new NotFoundError(`Event ${input.eventId} not found`);
+    }
+    if (event.scheduleLockedAt) {
+      throw new DomainStateError(
+        "Schedule is locked and can no longer be changed",
+        "SCHEDULE_LOCKED",
+      );
     }
     const tournament = await this.tournaments.findById(event.tournamentId);
     if (!tournament) {
@@ -261,6 +274,28 @@ export class ScheduleService {
 
     // Merge with existing scheduled matches not in this batch.
     const allMatches = await this.matches.listByEventId(input.eventId);
+    const matchById = new Map(allMatches.map((match) => [match.id, match]));
+    for (const assignment of input.assignments) {
+      const match = matchById.get(assignment.matchId);
+      if (!match) {
+        throw new ValidationError(
+          `Match ${assignment.matchId} does not belong to this event`,
+          "SCHEDULE_MATCH_INVALID",
+        );
+      }
+      if (!["PENDING", "SCHEDULED"].includes(match.status)) {
+        throw new DomainStateError(
+          `Match ${assignment.matchId} is ${match.status} and cannot be rescheduled`,
+          "MATCH_SCHEDULE_IMMUTABLE",
+        );
+      }
+      if (!match.entryAId || !match.entryBId) {
+        throw new DomainStateError(
+          `Match ${assignment.matchId} does not have both participants yet`,
+          "MATCH_PARTICIPANTS_PENDING",
+        );
+      }
+    }
     const batchIds = new Set(assignments.map((a) => a.matchId));
     const merged: ScheduleAssignment[] = [...assignments];
     for (const m of allMatches) {
@@ -284,7 +319,7 @@ export class ScheduleService {
 
     const updated: MatchRecord[] = [];
     const now = nowIso();
-    this.db.transaction(async (tx) => {
+    await this.db.transaction(async (tx) => {
       for (const assignment of input.assignments) {
         const durationOverride = input.assignments.find(
           (a) => a.matchId === assignment.matchId,
@@ -301,12 +336,21 @@ export class ScheduleService {
           .where(eq(matchesTable.id, assignment.matchId))
           
       }
+      if (input.restMinutes !== undefined) {
+        await tx
+          .update(tournamentEventsTable)
+          .set({ scheduleRestMinutes: input.restMinutes, updatedAt: now })
+          .where(eq(tournamentEventsTable.id, input.eventId));
+      }
       await writeAuditLog(tx, {
         userId: actor.userId,
         action: "schedule.save_assignments",
         entityType: "event",
         entityId: input.eventId,
-        after: { assignments: input.assignments },
+        after: {
+          assignments: input.assignments,
+          restMinutes: input.restMinutes,
+        },
         metadata: { warnings: conflicts.filter((c) => c.severity === "warning") },
       });
     });
@@ -319,8 +363,79 @@ export class ScheduleService {
     return { updated, conflicts };
   }
 
+  async lockSchedule(
+    actor: ActorContext,
+    eventId: string,
+  ): Promise<{
+    lockedAt: string;
+    conflicts: ScheduleConflict[];
+  }> {
+    await this.access.assertForEvent(actor, eventId, "schedule");
+    const event = await this.events.findById(eventId);
+    if (!event) {
+      throw new NotFoundError(`Event ${eventId} not found`);
+    }
+    if (event.scheduleLockedAt) {
+      return { lockedAt: event.scheduleLockedAt, conflicts: [] };
+    }
+
+    const tournament = await this.tournaments.findById(event.tournamentId);
+    if (!tournament) {
+      throw new NotFoundError(`Tournament ${event.tournamentId} not found`);
+    }
+    assertTournamentNotArchived(tournament.status);
+
+    const matchRows = await this.matches.listByEventId(eventId);
+    if (
+      matchRows.length === 0 ||
+      matchRows.some((match) => !match.courtId || !match.scheduledAt)
+    ) {
+      throw new ConflictError(
+        "Every match must be scheduled before the schedule can be locked",
+        "SCHEDULE_INCOMPLETE",
+      );
+    }
+
+    const assignments = matchRows.map((match) => ({
+      matchId: match.id,
+      courtId: match.courtId!,
+      startTime: match.scheduledAt!,
+    }));
+    const conflicts = await this.validateSchedule(eventId, assignments);
+    const hard = conflicts.filter((conflict) => conflict.severity === "error");
+    if (hard.length > 0) {
+      throw new ConflictError(
+        `Schedule has ${hard.length} hard conflict(s) and cannot be locked`,
+        "SCHEDULE_HAS_CONFLICTS",
+      );
+    }
+
+    const lockedAt = nowIso();
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(tournamentEventsTable)
+        .set({ scheduleLockedAt: lockedAt, updatedAt: lockedAt })
+        .where(eq(tournamentEventsTable.id, eventId));
+      await writeAuditLog(tx, {
+        userId: actor.userId,
+        action: "schedule.lock",
+        entityType: "event",
+        entityId: eventId,
+        before: { scheduleLockedAt: null },
+        after: { scheduleLockedAt: lockedAt },
+        metadata: {
+          warnings: conflicts.filter(
+            (conflict) => conflict.severity === "warning",
+          ),
+        },
+      });
+    });
+
+    return { lockedAt, conflicts };
+  }
+
   /**
-   * Simple ordered bulk assign: round-robin courts, sequential start times.
+   * Rebuild the full event schedule in parallel court waves.
    */
   async bulkAssign(
     actor: ActorContext,
@@ -329,26 +444,60 @@ export class ScheduleService {
     updated: MatchRecord[];
     conflicts: ScheduleConflict[];
   }> {
-    assertCanPerform(actor.role, "schedule");
     const input = parseOrThrow(bulkAssignSchema, raw);
-    const rule = await this.resolveRule(input.eventId);
-    const gap = input.gapMinutes ?? 0;
-    const duration = rule.defaultMatchDurationMinutes;
+    await this.access.assertForEvent(actor, input.eventId, "schedule");
+    const slotMinutes = input.matchDurationMinutes + input.restMinutes;
 
-    const assignments = input.matchIds.map((matchId, index) => {
-      const courtId = input.courtIds[index % input.courtIds.length]!;
-      const offset = index * (duration + gap);
-      const startTime = addMinutesIso(input.startTime, offset);
-      return {
-        matchId,
-        courtId,
-        startTime,
-      };
+    const matchRows = await this.matches.listByEventId(input.eventId);
+    const matchById = new Map(matchRows.map((match) => [match.id, match]));
+    for (const matchId of input.matchIds) {
+      const match = matchById.get(matchId);
+      if (!match || match.stageId !== input.stageId) {
+        throw new ValidationError(
+          `Match ${matchId} does not belong to the selected stage`,
+          "SCHEDULE_STAGE_MATCH_INVALID",
+        );
+      }
+      if (!["PENDING", "SCHEDULED"].includes(match.status)) {
+        throw new DomainStateError(
+          `Match ${matchId} is ${match.status} and cannot be rescheduled`,
+          "MATCH_SCHEDULE_IMMUTABLE",
+        );
+      }
+      if (!match.entryAId || !match.entryBId) {
+        throw new DomainStateError(
+          `Match ${matchId} does not have both participants yet`,
+          "MATCH_PARTICIPANTS_PENDING",
+        );
+      }
+    }
+    const entryPlayerIds = await this.buildEntryPlayerIds(matchRows);
+    const assignments = generateBulkSchedule({
+      matches: matchRows.map((match) => ({
+        id: match.id,
+        entryAId: match.entryAId,
+        entryBId: match.entryBId,
+        estimatedDurationMinutes: match.estimatedDurationMinutes,
+      })),
+      matchIds: input.matchIds,
+      courtIds: input.courtIds,
+      startTime: input.startTime,
+      slotMinutes,
+      entryPlayerIds,
     });
 
-    return this.saveAssignments(actor, {
+    const result = await this.saveAssignments(actor, {
       eventId: input.eventId,
-      assignments,
+      restMinutes: input.restMinutes,
+      assignments: assignments.map((assignment) => ({
+        ...assignment,
+        endTime: addMinutesIso(
+          assignment.startTime,
+          input.matchDurationMinutes,
+        ),
+        estimatedDurationMinutes: input.matchDurationMinutes,
+      })),
     });
+    return result;
   }
 }

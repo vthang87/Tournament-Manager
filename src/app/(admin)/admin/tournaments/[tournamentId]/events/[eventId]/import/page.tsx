@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import { EventService, TournamentService } from "@/application/services";
 import { getDb } from "@/db/client";
 import { ImportEntriesClient } from "@/features/import-export/import-entries-client";
-import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import { requireAuthOrRedirect } from "@/lib/auth/require-auth";
 import { pageTitle } from "@/lib/page-title";
 
 export async function generateMetadata({
@@ -31,7 +31,7 @@ export default async function EventImportPage({
 }: {
   params: Promise<{ tournamentId: string; eventId: string }>;
 }) {
-  await requireRoleOrRedirect(["ADMIN", "OPERATOR"]);
+  await requireAuthOrRedirect();
   const { tournamentId, eventId } = await params;
   const db = getDb();
   const t = await getTranslations("importExport");
@@ -51,12 +51,11 @@ export default async function EventImportPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href={`/admin/tournaments/${tournamentId}/events/${eventId}`}
-          className="text-sm text-slate-600 hover:text-slate-900"
-        >
-          ← {event.name}
-        </Link>
+        <AdminBreadcrumbs
+          tournament={{ id: tournamentId }}
+          event={{ id: eventId, name: event.name }}
+          current={t("importTitle")}
+        />
         <h2 className="mt-2 text-2xl font-semibold tracking-tight">
           {t("importTitle")}
         </h2>

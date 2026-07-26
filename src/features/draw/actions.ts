@@ -67,7 +67,10 @@ export async function generateDrawAction(
     });
 
     const entries = await new EntryService(db).listByEvent(eventId);
-    const clubs = await new ClubService(db).list();
+    const clubs = await new ClubService(db).listForTournament(
+      actor,
+      tournamentId,
+    );
     const clubById = new Map(clubs.map((c) => [c.id, c]));
     const entryById = new Map(entries.map((e) => [e.id, e]));
 

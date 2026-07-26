@@ -1,14 +1,20 @@
 /**
- * Six complete demo scenarios:
+ * Seven complete demo scenarios:
  * - badminton + pickleball
  * - draw-ready + knockout-live + completed
+ * - compact 16-team / 4-group completed tournament
  *
  * The fixture is idempotent and owns only IDs prefixed with `seed-scenario-`.
  */
 
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { pathToFileURL } from "node:url";
-import type { ActorContext, MatchRecord, MatchWithSets } from "@/core/domain";
+import {
+  SPORT_IDS,
+  type ActorContext,
+  type MatchRecord,
+  type MatchWithSets,
+} from "@/core/domain";
 import type { MatchRuleSnapshot } from "@/core/tournament-engine/match-rules";
 import {
   BracketService,
@@ -28,6 +34,7 @@ import {
   matchRules,
   matches,
   players,
+  playerSports,
   stageRules,
   stages,
   tournamentEvents,
@@ -35,7 +42,11 @@ import {
   users,
 } from "./schema";
 import { hashPassword } from "@/lib/auth/password";
+import { encryptCourtPin } from "@/lib/auth/court-pin-crypto";
 import { nowIso } from "@/lib/id";
+import { loadLocalEnv } from "./load-local-env";
+
+loadLocalEnv();
 
 export type DemoSport = "badminton" | "pickleball";
 export type DemoScenarioState = "draw-ready" | "knockout-live" | "completed";
@@ -58,6 +69,10 @@ export type DemoScenarioDefinition = {
   location: string;
   startDate: string;
   endDate: string;
+  entryCount?: number;
+  groupCount?: number;
+  knockoutBracketSize?: number;
+  allNormalResults?: boolean;
 };
 
 type ScenarioIds = {
@@ -98,6 +113,9 @@ const COURT_PIN = "1234";
 const DRAW_SEED_SUFFIX = "serpentine-v1";
 const GROUP_MATCH_MINUTES = 35;
 const KNOCKOUT_MATCH_MINUTES = 50;
+const DEFAULT_ENTRY_COUNT = 32;
+const DEFAULT_GROUP_COUNT = 8;
+const DEFAULT_KNOCKOUT_BRACKET_SIZE = 16;
 
 const admin: ActorContext = {
   userId: ADMIN_ID,
@@ -274,6 +292,20 @@ export const DEMO_SCENARIOS: DemoScenarioDefinition[] = [
     endDate: "2026-07-06",
   },
   {
+    sport: "badminton",
+    state: "completed",
+    prefix: "seed-scenario-badminton-16-teams-completed",
+    name: "Badminton 16 Đội — Hoàn tất",
+    slug: "badminton-16-teams-completed",
+    location: "Nhà thi đấu Rạch Miễu, TP.HCM",
+    startDate: "2026-06-20",
+    endDate: "2026-06-22",
+    entryCount: 16,
+    groupCount: 4,
+    knockoutBracketSize: 8,
+    allNormalResults: true,
+  },
+  {
     sport: "pickleball",
     state: "draw-ready",
     prefix: "seed-scenario-pickleball-draw-ready",
@@ -304,6 +336,30 @@ export const DEMO_SCENARIOS: DemoScenarioDefinition[] = [
     endDate: "2026-07-13",
   },
 ];
+
+function scenarioShape(definition: DemoScenarioDefinition) {
+  const entryCount = definition.entryCount ?? DEFAULT_ENTRY_COUNT;
+  const groupCount = definition.groupCount ?? DEFAULT_GROUP_COUNT;
+  const knockoutBracketSize =
+    definition.knockoutBracketSize ?? DEFAULT_KNOCKOUT_BRACKET_SIZE;
+  const capacityPerGroup = entryCount / groupCount;
+
+  if (!Number.isInteger(capacityPerGroup)) {
+    throw new Error(
+      `${definition.slug}: ${entryCount} entries cannot be divided into ${groupCount} groups`,
+    );
+  }
+
+  return {
+    entryCount,
+    groupCount,
+    capacityPerGroup,
+    knockoutBracketSize,
+    groupMatchCount:
+      groupCount * ((capacityPerGroup * (capacityPerGroup - 1)) / 2),
+    knockoutMatchCount: knockoutBracketSize,
+  };
+}
 
 function idsFor(prefix: string): ScenarioIds {
   return {
@@ -397,7 +453,7 @@ async function upsertAdmin(db: AppDatabase): Promise<void> {
     username: process.env.SEED_ADMIN_USERNAME ?? "admin",
     passwordHash,
     displayName: process.env.SEED_ADMIN_DISPLAY_NAME ?? "Local Admin",
-    role: "ADMIN" as const,
+    role: "SUPER_ADMIN" as const,
     active: true,
     updatedAt: now,
   };
@@ -426,7 +482,13 @@ async function upsertSportDirectory(
       .from(clubs)
       .where(eq(clubs.id, id))
       .limit(1);
-    const values = { name, shortName, logoUrl: null, updatedAt: now };
+    const values = {
+      ownerUserId: ADMIN_ID,
+      name,
+      shortName,
+      logoUrl: null,
+      updatedAt: now,
+    };
     if (existing) {
       await db.update(clubs).set(values).where(eq(clubs.id, id));
     } else {
@@ -439,13 +501,12 @@ async function upsertSportDirectory(
     const name = playerName(sport, index);
     const values = {
       name,
+      ownerUserId: ADMIN_ID,
       displayName: name,
       gender: "MALE" as const,
       dateOfBirth: null,
       phone: null,
       email: null,
-      clubId: clubId(sport, index % clubDefinitions.length),
-      ranking: index + 1,
       metadataJson: JSON.stringify({ sport: sport.toUpperCase() }),
       updatedAt: now,
     };
@@ -459,6 +520,27 @@ async function upsertSportDirectory(
     } else {
       await db.insert(players).values({ id, ...values, createdAt: now });
     }
+    const profileClubId = clubId(sport, index % clubDefinitions.length);
+    const profileSportId =
+      sport === "pickleball" ? SPORT_IDS.PICKLEBALL : SPORT_IDS.BADMINTON;
+    await db
+      .insert(playerSports)
+      .values({
+        playerId: id,
+        sportId: profileSportId,
+        clubId: profileClubId,
+        ranking: index + 1,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [playerSports.playerId, playerSports.sportId],
+        set: {
+          clubId: profileClubId,
+          ranking: index + 1,
+          updatedAt: now,
+        },
+      });
   }
 }
 
@@ -500,8 +582,10 @@ async function upsertScenarioBase(
   db: AppDatabase,
   definition: DemoScenarioDefinition,
   pinHash: string,
+  pinEncrypted: string,
 ): Promise<ScenarioContext> {
   const ids = idsFor(definition.prefix);
+  const shape = scenarioShape(definition);
   const now = nowIso();
   const [existingTournament] = await db
     .select()
@@ -509,9 +593,14 @@ async function upsertScenarioBase(
     .where(eq(tournaments.id, ids.tournament))
     .limit(1);
   const tournamentValues = {
+    ownerUserId: ADMIN_ID,
+    sportId:
+      definition.sport === "pickleball"
+        ? SPORT_IDS.PICKLEBALL
+        : SPORT_IDS.BADMINTON,
     name: definition.name,
     slug: definition.slug,
-    description: `${definition.sport === "pickleball" ? "Pickleball" : "Cầu lông"} demo — 32 đôi nam, 8 bảng × 4, 4 sân.`,
+    description: `${definition.sport === "pickleball" ? "Pickleball" : "Cầu lông"} demo — ${shape.entryCount} đôi nam, ${shape.groupCount} bảng × ${shape.capacityPerGroup}, 4 sân.`,
     location: definition.location,
     timezone: TIMEZONE,
     startDate: definition.startDate,
@@ -643,6 +732,7 @@ async function upsertScenarioBase(
       code: `C${index + 1}`,
       active: true,
       accessPinHash: pinHash,
+      accessPinEncrypted: pinEncrypted,
       updatedAt: now,
     };
     const [existingCourt] = await db
@@ -658,13 +748,13 @@ async function upsertScenarioBase(
   }
 
   const sportClubs = clubsFor(definition.sport);
-  for (let index = 0; index < 32; index += 1) {
+  for (let index = 0; index < shape.entryCount; index += 1) {
     const id = entryId(definition.prefix, index);
     const firstPlayerId = playerId(definition.sport, index * 2);
     const secondPlayerId = playerId(definition.sport, index * 2 + 1);
     const playerAName = playerName(definition.sport, index * 2);
     const playerBName = playerName(definition.sport, index * 2 + 1);
-    const seed = index < 8 ? index + 1 : null;
+    const seed = index < shape.groupCount ? index + 1 : null;
     const values = {
       eventId: ids.event,
       displayName: `${playerAName} / ${playerBName}${seed ? ` [S${seed}]` : ""}`,
@@ -794,6 +884,7 @@ async function ensureDrawAndGroupMatches(
 ): Promise<void> {
   const draws = new DrawService(db);
   const matchGeneration = new MatchGenerationService(db);
+  const shape = scenarioShape(context.definition);
   const [event] = await db
     .select()
     .from(tournamentEvents)
@@ -817,8 +908,8 @@ async function ensureDrawAndGroupMatches(
           avoidSameClub: true,
           avoidSameTeam: false,
           avoidSameRegion: false,
-          groupCount: 8,
-          capacityPerGroup: 4,
+          groupCount: shape.groupCount,
+          capacityPerGroup: shape.capacityPerGroup,
         },
         randomSeed: `${context.definition.prefix}-${DRAW_SEED_SUFFIX}`,
       });
@@ -861,6 +952,19 @@ function scheduledIso(
   return new Date(new Date(date).getTime() + minutesFromStart * 60_000).toISOString();
 }
 
+export function demoScheduleMinutesFromStart(
+  definition: DemoScenarioDefinition,
+  index: number,
+  stage: "group" | "knockout",
+): number {
+  if (stage === "group") {
+    return index * (GROUP_MATCH_MINUTES + 5);
+  }
+  const knockoutOffsetMinutes =
+    scenarioShape(definition).groupMatchCount * (GROUP_MATCH_MINUTES + 5);
+  return knockoutOffsetMinutes + index * (KNOCKOUT_MATCH_MINUTES + 5);
+}
+
 async function prepareMatch(
   db: AppDatabase,
   context: ScenarioContext,
@@ -872,7 +976,7 @@ async function prepareMatch(
     stage === "group" ? GROUP_MATCH_MINUTES : KNOCKOUT_MATCH_MINUTES;
   const scheduledAt = scheduledIso(
     context.definition,
-    index * (duration + 5),
+    demoScheduleMinutesFromStart(context.definition, index, stage),
   );
   const courtIdValue = context.ids.courts[index % context.ids.courts.length]!;
   await db
@@ -964,7 +1068,9 @@ async function completeGroupStage(
       continue;
     }
     current = await prepareMatch(db, context, current, index, "group");
-    if (index === 0) {
+    if (context.definition.allNormalResults) {
+      await finishNormal(db, current, index);
+    } else if (index === 0) {
       await matchOps.cancelMatch(admin, {
         matchId: current.id,
         reason: "Demo: mưa lớn làm gián đoạn lịch thi đấu",
@@ -1004,6 +1110,7 @@ async function ensureKnockoutBracket(
   context: ScenarioContext,
 ): Promise<void> {
   const brackets = new BracketService(db);
+  const shape = scenarioShape(context.definition);
   const existingRule = await brackets.getQualificationRule(
     context.ids.stageGroup,
     context.ids.stageKnockout,
@@ -1024,7 +1131,7 @@ async function ensureKnockoutBracket(
     await brackets.generateBracket(admin, {
       sourceStageId: context.ids.stageGroup,
       targetStageId: context.ids.stageKnockout,
-      bracketSize: 16,
+      bracketSize: shape.knockoutBracketSize,
       placementRule: "BY_QUALIFICATION_SEED",
       byeAssignment: "TOP_SEEDS",
       thirdPlaceEnabled: true,
@@ -1086,6 +1193,15 @@ async function seedLiveKnockout(
 
   for (let index = 0; index < firstRound.length; index += 1) {
     let current = firstRound[index]!;
+    if (index <= 5) {
+      current = await prepareMatch(
+        db,
+        context,
+        current,
+        index,
+        "knockout",
+      );
+    }
     if (
       current.status === "COMPLETED" ||
       current.status === "WALKOVER" ||
@@ -1095,13 +1211,11 @@ async function seedLiveKnockout(
     }
 
     if (index < 3) {
-      current = await prepareMatch(db, context, current, index, "knockout");
       await finishNormal(db, current, index);
       continue;
     }
 
     if (index === 3) {
-      current = await prepareMatch(db, context, current, index, "knockout");
       const matchOps = createMatchOpsService(db);
       const started =
         current.status === "IN_PROGRESS"
@@ -1116,7 +1230,6 @@ async function seedLiveKnockout(
     }
 
     if (index === 4) {
-      current = await prepareMatch(db, context, current, index, "knockout");
       const warmupUntil = new Date(Date.now() + 10 * 60_000).toISOString();
       await db
         .update(matches)
@@ -1126,7 +1239,6 @@ async function seedLiveKnockout(
     }
 
     if (index === 5) {
-      await prepareMatch(db, context, current, index, "knockout");
       continue;
     }
 
@@ -1157,6 +1269,7 @@ async function completeKnockout(
   db: AppDatabase,
   context: ScenarioContext,
 ): Promise<void> {
+  const shape = scenarioShape(context.definition);
   const roundNumbers = [
     ...new Set(
       (
@@ -1205,11 +1318,13 @@ async function completeKnockout(
         db,
         context,
         current,
-        48 + scheduleIndex,
+        scheduleIndex,
         "knockout",
       );
 
-      if (roundNumber === 0 && index === 0) {
+      if (context.definition.allNormalResults) {
+        await finishNormal(db, current, scheduleIndex);
+      } else if (roundNumber === 0 && index === 0) {
         await finishSpecial(db, current, "WALKOVER");
       } else if (roundNumber === 0 && index === 1) {
         await finishSpecial(db, current, "NO_SHOW");
@@ -1245,7 +1360,7 @@ async function completeKnockout(
     .update(tournaments)
     .set({
       status: "COMPLETED",
-      description: `${context.definition.sport === "pickleball" ? "Pickleball" : "Cầu lông"} demo hoàn tất: 32 đôi nam, 8 bảng × 4, đầy đủ kết quả và podium.`,
+      description: `${context.definition.sport === "pickleball" ? "Pickleball" : "Cầu lông"} demo hoàn tất: ${shape.entryCount} đôi nam, ${shape.groupCount} bảng × ${shape.capacityPerGroup}, đầy đủ kết quả và podium.`,
       updatedAt: nowIso(),
     })
     .where(eq(tournaments.id, context.ids.tournament));
@@ -1382,8 +1497,11 @@ function assertScenarioSummary(
   definition: DemoScenarioDefinition,
   summary: ScenarioSummary,
 ): void {
-  if (summary.entries !== 32) {
-    throw new Error(`${definition.slug}: expected 32 entries`);
+  const shape = scenarioShape(definition);
+  if (summary.entries !== shape.entryCount) {
+    throw new Error(
+      `${definition.slug}: expected ${shape.entryCount} entries`,
+    );
   }
   if (definition.state === "draw-ready") {
     if (
@@ -1395,11 +1513,25 @@ function assertScenarioSummary(
     }
     return;
   }
-  if (summary.groupMatches !== 48 || summary.knockoutMatches !== 16) {
+  if (
+    summary.groupMatches !== shape.groupMatchCount ||
+    summary.knockoutMatches !== shape.knockoutMatchCount
+  ) {
     throw new Error(
-      `${definition.slug}: expected 48 group and 16 knockout matches`,
+      `${definition.slug}: expected ${shape.groupMatchCount} group and ${shape.knockoutMatchCount} knockout matches`,
     );
   }
+  if (definition.allNormalResults) {
+    const matchCount = shape.groupMatchCount + shape.knockoutMatchCount;
+    if (
+      summary.statuses.COMPLETED !== matchCount ||
+      summary.resolutions.NORMAL !== matchCount
+    ) {
+      throw new Error(
+        `${definition.slug}: expected all ${matchCount} matches to have normal completed results`,
+      );
+    }
+  } else {
   for (const resolution of [
     "NORMAL",
     "WALKOVER",
@@ -1413,6 +1545,7 @@ function assertScenarioSummary(
   }
   if (!summary.statuses.CANCELLED) {
     throw new Error(`${definition.slug}: missing CANCELLED match`);
+  }
   }
   if (definition.state === "knockout-live") {
     for (const status of [
@@ -1450,10 +1583,16 @@ export async function seedDemoScenarios(
   await upsertSportDirectory(db, "badminton");
   await upsertSportDirectory(db, "pickleball");
   const pinHash = await hashPassword(COURT_PIN);
+  const pinEncrypted = encryptCourtPin(COURT_PIN);
 
   const contexts: ScenarioContext[] = [];
   for (const definition of DEMO_SCENARIOS) {
-    const context = await upsertScenarioBase(db, definition, pinHash);
+    const context = await upsertScenarioBase(
+      db,
+      definition,
+      pinHash,
+      pinEncrypted,
+    );
     contexts.push(context);
     await advanceScenario(db, context);
   }

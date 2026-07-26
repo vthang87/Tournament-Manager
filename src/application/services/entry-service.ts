@@ -23,7 +23,6 @@ import { DrizzleTournamentEventRepository } from "@/db/repositories/tournament-e
 import { DrizzleTournamentRepository } from "@/db/repositories/tournament-repository";
 import { entries, entryMembers } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit";
-import { assertCanPerform } from "@/lib/auth/policies";
 import { createId, nowIso } from "@/lib/id";
 import {
   createEntrySchema,
@@ -31,6 +30,7 @@ import {
   updateEntrySchema,
 } from "@/lib/validation/schemas";
 import { eq } from "drizzle-orm";
+import { TournamentAccessService } from "./tournament-access-service";
 
 export type EntryValidationSummary = {
   total: number;
@@ -47,6 +47,7 @@ export class EntryService {
   private readonly tournaments: DrizzleTournamentRepository;
   private readonly players: DrizzlePlayerRepository;
   private readonly clubs: DrizzleClubRepository;
+  private readonly access: TournamentAccessService;
 
   constructor(private readonly db: AppDatabase) {
     this.entries = new DrizzleEntryRepository(db);
@@ -54,6 +55,7 @@ export class EntryService {
     this.tournaments = new DrizzleTournamentRepository(db);
     this.players = new DrizzlePlayerRepository(db);
     this.clubs = new DrizzleClubRepository(db);
+    this.access = new TournamentAccessService(db);
   }
 
   listByEvent(eventId: string) {
@@ -85,7 +87,10 @@ export class EntryService {
     return entry;
   }
 
-  private async assertEventAllowsEntryEdits(eventId: string) {
+  private async assertEventAllowsEntryEdits(
+    actor: ActorContext,
+    eventId: string,
+  ) {
     const event = await this.events.findById(eventId);
     if (!event) {
       throw new NotFoundError(`Event ${eventId} not found`);
@@ -103,13 +108,21 @@ export class EntryService {
       throw new NotFoundError(`Tournament ${event.tournamentId} not found`);
     }
     assertTournamentNotArchived(tournament.status);
-    return event;
+    await this.access.assert(actor, tournament.id, "import");
+    return { event, tournament };
   }
 
-  private async assertPlayersExist(playerIds: string[]) {
+  private async assertPlayersExist(
+    playerIds: string[],
+    ownerUserId: string,
+    sportId: string,
+  ) {
     for (const playerId of playerIds) {
-      const player = await this.players.findById(playerId);
-      if (!player) {
+      const player = await this.players.findById(playerId, ownerUserId);
+      if (
+        !player ||
+        !player.sports.some((profile) => profile.sportId === sportId)
+      ) {
         throw new NotFoundError(`Player ${playerId} not found`);
       }
     }
@@ -158,13 +171,19 @@ export class EntryService {
     actor: ActorContext,
     raw: unknown,
   ): Promise<EntryWithMembers> {
-    assertCanPerform(actor.role, "import");
     const input = parseOrThrow(createEntrySchema, raw);
-    const event = await this.assertEventAllowsEntryEdits(input.eventId);
+    const { event, tournament } = await this.assertEventAllowsEntryEdits(
+      actor,
+      input.eventId,
+    );
     assertEventMutable(event.status);
 
     assertMemberCardinality(event.type, input.members);
-    await this.assertPlayersExist(input.members.map((m) => m.playerId));
+    await this.assertPlayersExist(
+      input.members.map((m) => m.playerId),
+      tournament.ownerUserId,
+      tournament.sportId,
+    );
     await this.assertNoDuplicateMembership(
       input.eventId,
       input.members.map((m) => m.playerId),
@@ -172,7 +191,10 @@ export class EntryService {
     await this.assertUniqueSeed(input.eventId, input.seed ?? null);
 
     if (input.clubId) {
-      const club = await this.clubs.findById(input.clubId);
+      const club = await this.clubs.findById(
+        input.clubId,
+        tournament.ownerUserId,
+      );
       if (!club) {
         throw new NotFoundError(`Club ${input.clubId} not found`);
       }
@@ -225,7 +247,6 @@ export class EntryService {
     id: string,
     raw: unknown,
   ): Promise<EntryWithMembers> {
-    assertCanPerform(actor.role, "import");
     const input = parseOrThrow(updateEntrySchema, raw) as UpdateEntryInput;
     const existing = await this.getById(id);
     if (existing.status !== "ACTIVE") {
@@ -234,12 +255,19 @@ export class EntryService {
         "ENTRY_NOT_ACTIVE",
       );
     }
-    const event = await this.assertEventAllowsEntryEdits(existing.eventId);
+    const { event, tournament } = await this.assertEventAllowsEntryEdits(
+      actor,
+      existing.eventId,
+    );
     assertEventMutable(event.status);
 
     const members = input.members ?? existing.members;
     assertMemberCardinality(event.type, members);
-    await this.assertPlayersExist(members.map((m) => m.playerId));
+    await this.assertPlayersExist(
+      members.map((m) => m.playerId),
+      tournament.ownerUserId,
+      tournament.sportId,
+    );
     await this.assertNoDuplicateMembership(
       existing.eventId,
       members.map((m) => m.playerId),
@@ -252,7 +280,10 @@ export class EntryService {
     );
 
     if (input.clubId) {
-      const club = await this.clubs.findById(input.clubId);
+      const club = await this.clubs.findById(
+        input.clubId,
+        tournament.ownerUserId,
+      );
       if (!club) {
         throw new NotFoundError(`Club ${input.clubId} not found`);
       }
@@ -313,7 +344,7 @@ export class EntryService {
     actor: ActorContext,
     id: string,
   ): Promise<{ action: "deleted" | "withdrawn"; entry?: EntryWithMembers }> {
-    assertCanPerform(actor.role, "import");
+    await this.access.assertForEntry(actor, id, "import");
     const existing = await this.getById(id);
     const event = await this.events.findById(existing.eventId);
     if (!event) {
@@ -344,7 +375,7 @@ export class EntryService {
     id: string,
     status: Extract<EntryStatus, "WITHDRAWN" | "DISQUALIFIED" | "ACTIVE">,
   ): Promise<EntryWithMembers> {
-    assertCanPerform(actor.role, "import");
+    await this.access.assertForEntry(actor, id, "import");
     const existing = await this.getById(id);
 
     if (status === "ACTIVE" && existing.status !== "ACTIVE") {

@@ -65,7 +65,7 @@ export class PublicViewService {
     const [eventRows, courtRows, clubs] = await Promise.all([
       this.events.listByTournamentId(tournament.id),
       this.courts.listByTournamentId(tournament.id),
-      this.clubs.list(),
+      this.clubs.list(tournament.ownerUserId),
     ]);
     const clubNameById = new Map(clubs.map((c) => [c.id, c.name]));
 

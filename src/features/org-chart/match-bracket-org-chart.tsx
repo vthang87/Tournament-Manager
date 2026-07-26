@@ -23,6 +23,8 @@ const VERT_GAP = 24;
 const ROUND_LABEL_H = 30;
 /** Vertical gap between the final and the 3rd-place match (same column). */
 const THIRD_GAP = 28;
+/** Keep the final + 3rd-place pair centered on the bracket's vertical axis. */
+const FINAL_PAIR_OFFSET = (CARD_H + THIRD_GAP) / 2;
 
 function cardLeft(columnIndex: number): number {
   return PAD_X + columnIndex * (CARD_W + COL_GAP);
@@ -30,6 +32,10 @@ function cardLeft(columnIndex: number): number {
 
 function firstRoundTop(rowIndex: number): number {
   return PAD_Y + ROUND_LABEL_H + rowIndex * (CARD_H + VERT_GAP);
+}
+
+function teamRowCenter(cardTop: number, slotIndex: 0 | 1): number {
+  return cardTop + CARD_HEADER_H + slotIndex * ROW_H + ROW_H / 2;
 }
 
 function slotTop(roundIndex: number, matchIndex: number): number {
@@ -47,15 +53,29 @@ function orthogonalPath(
   return `M ${x1} ${y1} H ${midX} V ${y2} H ${x2}`;
 }
 
-/** Vertical drop then horizontal into the 3rd-place node. */
-function dropPath(
+/** Route a semifinal loser down/up, then enter the 3rd-place card from its left. */
+function thirdPlacePath(
   x1: number,
   y1: number,
   x2: number,
   y2: number,
 ): string {
-  const midY = (y1 + y2) / 2;
-  return `M ${x1} ${y1} V ${midY} H ${x2} V ${y2}`;
+  return `M ${x1} ${y1} V ${y2} H ${x2}`;
+}
+
+function mergedThirdPlacePath(
+  sources: Array<{ x: number; y: number }>,
+  trunkX: number,
+  targetX: number,
+  targetY: number,
+): string {
+  const branchPaths = sources
+    .map((source) => `M ${source.x} ${source.y} H ${trunkX}`)
+    .join(" ");
+  const allY = [...sources.map((source) => source.y), targetY];
+  const minY = Math.min(...allY);
+  const maxY = Math.max(...allY);
+  return `${branchPaths} M ${trunkX} ${minY} V ${maxY} M ${trunkX} ${targetY} H ${targetX}`;
 }
 
 function slotName(
@@ -156,6 +176,7 @@ function MatchNodeCard({
   code: string;
 }) {
   const decided = match.winnerEntryId != null;
+  const isFinal = !match.isThirdPlace && match.nextMatchId == null;
   const aWin = decided && match.winnerEntryId === match.slotA.entryId;
   const bWin = decided && match.winnerEntryId === match.slotB.entryId;
   const setCount = match.setScores.length;
@@ -168,16 +189,28 @@ function MatchNodeCard({
       className={cn(
         "block h-full w-full overflow-hidden rounded-md border bg-slate-800 shadow-sm transition",
         "hover:border-orange-400/70 hover:ring-1 hover:ring-orange-400/40",
-        match.status === "IN_PROGRESS"
-          ? "border-amber-400/70"
-          : "border-slate-600/80",
+        isFinal
+          ? "border-amber-300/90 ring-1 ring-amber-300/40 shadow-[0_0_22px_rgba(251,191,36,0.24)]"
+          : match.status === "IN_PROGRESS"
+            ? "border-amber-400/70"
+            : "border-slate-600/80",
       )}
     >
       <div
-        className="flex items-center justify-between gap-2 border-b border-slate-700 bg-slate-900/70 px-2"
+        className={cn(
+          "flex items-center justify-between gap-2 border-b px-2",
+          isFinal
+            ? "border-amber-400/30 bg-amber-400/10"
+            : "border-slate-700 bg-slate-900/70",
+        )}
         style={{ height: CARD_HEADER_H }}
       >
-        <span className="truncate text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+        <span
+          className={cn(
+            "truncate text-[10px] font-semibold uppercase tracking-wider",
+            isFinal ? "text-amber-200" : "text-slate-400",
+          )}
+        >
           {code}
         </span>
         <span
@@ -256,7 +289,9 @@ export function MatchBracketOrgChart({
   const matchCode = (match: BracketMatchView) =>
     match.isThirdPlace
       ? t("thirdPlace")
-      : `${localizeRoundLabel(match.roundLabel, t)} · M${match.matchIndex + 1}`;
+      : match.nextMatchId == null
+        ? localizeRoundLabel(match.roundLabel, t)
+        : `${localizeRoundLabel(match.roundLabel, t)} · M${match.matchIndex + 1}`;
 
   const layout = useMemo(() => {
     const rounds = board.rounds;
@@ -265,6 +300,7 @@ export function MatchBracketOrgChart({
     const centers = new Map<string, { x: number; cy: number; bottom: number }>();
     const nodes: Array<{ match: BracketMatchView; x: number; y: number }> = [];
     const edges: string[] = [];
+    const finalEdges: string[] = [];
     const dashedEdges: string[] = [];
 
     for (const round of rounds) {
@@ -288,6 +324,11 @@ export function MatchBracketOrgChart({
           const mid =
             feederCenters.reduce((sum, c) => sum + c, 0) / feederCenters.length;
           top = mid - CARD_H / 2;
+          const isFinalRound =
+            round.roundIndex === Math.max(0, rounds.length - 1);
+          if (isFinalRound && board.thirdPlace) {
+            top -= FINAL_PAIR_OFFSET;
+          }
         } else {
           top = slotTop(round.roundIndex, match.matchIndex);
         }
@@ -299,7 +340,11 @@ export function MatchBracketOrgChart({
         for (const feeder of feeders) {
           const from = centers.get(feeder.id);
           if (!from) continue;
-          edges.push(
+          const targetEdges =
+            round.roundIndex === Math.max(0, rounds.length - 1)
+              ? finalEdges
+              : edges;
+          targetEdges.push(
             orthogonalPath(
               cardLeft(round.roundIndex - 1) + CARD_W,
               from.cy,
@@ -310,9 +355,6 @@ export function MatchBracketOrgChart({
         }
       }
     }
-
-    let thirdNode: { match: BracketMatchView; x: number; y: number } | null =
-      null;
 
     if (board.thirdPlace) {
       const third = board.thirdPlace;
@@ -336,24 +378,49 @@ export function MatchBracketOrgChart({
       const thirdX = cardLeft(finalRoundIndex);
       const thirdY = anchorBottom + THIRD_GAP;
 
-      thirdNode = { match: third, x: thirdX, y: thirdY };
-      nodes.push(thirdNode);
+      nodes.push({ match: third, x: thirdX, y: thirdY });
 
       if (feeders.length > 0) {
-        for (const feeder of feeders) {
-          const from = centers.get(feeder.id);
-          if (!from) continue;
+        const sources: Array<{ x: number; y: number }> = [];
+        for (let index = 0; index < feeders.length; index += 1) {
+          const feeder = feeders[index]!;
+          const fromNode = nodes.find((node) => node.match.id === feeder.id);
+          if (!fromNode) continue;
+
+          const loserSlotIndex: 0 | 1 =
+            feeder.winnerEntryId === feeder.slotA.entryId ? 1 : 0;
+          const loserEntryId =
+            loserSlotIndex === 0
+              ? feeder.slotA.entryId
+              : feeder.slotB.entryId;
+          if (
+            loserEntryId == null ||
+            loserEntryId === third.slotA.entryId ||
+            loserEntryId === third.slotB.entryId
+          ) {
+            sources.push({
+              x: fromNode.x + CARD_W,
+              y: teamRowCenter(fromNode.y, loserSlotIndex),
+            });
+          }
+        }
+        if (sources.length > 0) {
           dashedEdges.push(
-            dropPath(from.x + CARD_W / 2, from.bottom, thirdX + CARD_W / 2, thirdY),
+            mergedThirdPlacePath(
+              sources,
+              thirdX - COL_GAP / 4,
+              thirdX,
+              thirdY + CARD_H / 2,
+            ),
           );
         }
       } else {
         dashedEdges.push(
-          dropPath(
+          thirdPlacePath(
             cardLeft(Math.max(0, finalRoundIndex - 1)) + CARD_W / 2,
             anchorBottom,
-            thirdX + CARD_W / 2,
-            thirdY,
+            thirdX,
+            thirdY + CARD_H / 2,
           ),
         );
       }
@@ -370,14 +437,16 @@ export function MatchBracketOrgChart({
       label: localizeRoundLabel(r.label, t),
       x: cardLeft(r.roundIndex),
     }));
-    if (thirdNode) {
-      columnLabels.push({
-        label: t("thirdPlace"),
-        x: thirdNode.x,
-      });
-    }
 
-    return { width, height, edges, dashedEdges, nodes, columnLabels, thirdNode };
+    return {
+      width,
+      height,
+      edges,
+      finalEdges,
+      dashedEdges,
+      nodes,
+      columnLabels,
+    };
   }, [board.rounds, board.thirdPlace, dropFromMatchIds, t]);
 
   if (!layout) return null;
@@ -422,6 +491,20 @@ export function MatchBracketOrgChart({
                 strokeWidth={1.5}
               />
             ))}
+            {layout.finalEdges.map((d, i) => (
+              <path
+                key={`final-${i}`}
+                d={d}
+                fill="none"
+                stroke="#fbbf24"
+                strokeWidth={2.25}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  filter: "drop-shadow(0 0 3px rgba(251, 191, 36, 0.55))",
+                }}
+              />
+            ))}
             {layout.dashedEdges.map((d, i) => (
               <path
                 key={`d-${i}`}
@@ -443,19 +526,6 @@ export function MatchBracketOrgChart({
               {texts[0]}
             </div>
           ))}
-
-          {layout.thirdNode ? (
-            <div
-              className="absolute text-center text-[10px] font-bold uppercase tracking-[0.14em] text-orange-400/80"
-              style={{
-                left: layout.thirdNode.x,
-                top: layout.thirdNode.y - 18,
-                width: CARD_W,
-              }}
-            >
-              {t("thirdPlace")}
-            </div>
-          ) : null}
 
           {layout.nodes.map(({ match, x, y }) => (
             <AbsoluteCard key={match.id} x={x} y={y}>

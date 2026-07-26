@@ -1,27 +1,31 @@
-import { eq, or, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import type {
   CreatePlayerInput,
   Player,
   PlayerGender,
+  PlayerSportProfile,
   UpdatePlayerInput,
 } from "@/core/domain";
 import type { AppDatabase } from "@/db/client";
-import { players } from "@/db/schema";
+import { players, playerSports } from "@/db/schema";
 import { createId, nowIso } from "@/lib/id";
 import { matchesSearch } from "@/lib/normalize-search";
 
-function mapPlayer(row: typeof players.$inferSelect): Player {
+function mapPlayer(
+  row: typeof players.$inferSelect,
+  sports: PlayerSportProfile[] = [],
+): Player {
   return {
     id: row.id,
+    ownerUserId: row.ownerUserId,
     name: row.name,
     displayName: row.displayName,
     gender: row.gender as PlayerGender,
     dateOfBirth: row.dateOfBirth,
     phone: row.phone,
     email: row.email,
-    clubId: row.clubId,
-    ranking: row.ranking,
     metadataJson: row.metadataJson,
+    sports,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -34,37 +38,86 @@ export class DrizzlePlayerRepository {
     const now = nowIso();
     const row = {
       id: createId(),
+      ownerUserId: input.ownerUserId,
       name: input.name,
       displayName: input.displayName,
       gender: (input.gender ?? "UNSPECIFIED") as PlayerGender,
       dateOfBirth: input.dateOfBirth ?? null,
       phone: input.phone ?? null,
       email: input.email ?? null,
-      clubId: input.clubId ?? null,
-      ranking: input.ranking ?? null,
       metadataJson: input.metadataJson ?? null,
       createdAt: now,
       updatedAt: now,
     };
-    await this.db.insert(players).values(row);
-    return mapPlayer(row);
+    await this.db.transaction(async (tx) => {
+      await tx.insert(players).values(row);
+      if (input.sports.length > 0) {
+        await tx.insert(playerSports).values(
+          input.sports.map((profile) => ({
+            playerId: row.id,
+            sportId: profile.sportId,
+            clubId: profile.clubId ?? null,
+            ranking: profile.ranking ?? null,
+            createdAt: now,
+            updatedAt: now,
+          })),
+        );
+      }
+    });
+    return this.findById(row.id) as Promise<Player>;
   }
 
-  async findById(id: string): Promise<Player | null> {
+  async findById(id: string, ownerUserId?: string): Promise<Player | null> {
     const rows = await this.db
       .select()
       .from(players)
-      .where(eq(players.id, id))
+      .where(
+        ownerUserId
+          ? and(eq(players.id, id), eq(players.ownerUserId, ownerUserId))
+          : eq(players.id, id),
+      )
       .limit(1);
-    return rows[0] ? mapPlayer(rows[0]) : null;
+    if (!rows[0]) {
+      return null;
+    }
+    const profiles = await this.db
+      .select()
+      .from(playerSports)
+      .where(eq(playerSports.playerId, id));
+    return mapPlayer(rows[0], profiles);
   }
 
-  async list(query?: string): Promise<Player[]> {
+  async list(
+    ownerUserId: string,
+    query?: string,
+    sportId?: string,
+  ): Promise<Player[]> {
     const rows = await this.db
       .select()
       .from(players)
+      .where(eq(players.ownerUserId, ownerUserId))
       .orderBy(sql`${players.displayName}`);
-    const mapped = rows.map(mapPlayer);
+    const ids = rows.map((row) => row.id);
+    const allProfiles =
+      ids.length === 0
+        ? []
+        : await this.db
+            .select()
+            .from(playerSports)
+            .where(inArray(playerSports.playerId, ids));
+    const profilesByPlayer = new Map<string, PlayerSportProfile[]>();
+    for (const profile of allProfiles) {
+      const profiles = profilesByPlayer.get(profile.playerId) ?? [];
+      profiles.push(profile);
+      profilesByPlayer.set(profile.playerId, profiles);
+    }
+    const mapped = rows
+      .map((row) => mapPlayer(row, profilesByPlayer.get(row.id) ?? []))
+      .filter(
+        (player) =>
+          !sportId ||
+          player.sports.some((profile) => profile.sportId === sportId),
+      );
     const q = query?.trim();
     if (!q) {
       return mapped;
@@ -94,9 +147,6 @@ export class DrizzlePlayerRepository {
             : existing.dateOfBirth,
         phone: input.phone !== undefined ? input.phone : existing.phone,
         email: input.email !== undefined ? input.email : existing.email,
-        clubId: input.clubId !== undefined ? input.clubId : existing.clubId,
-        ranking:
-          input.ranking !== undefined ? input.ranking : existing.ranking,
         metadataJson:
           input.metadataJson !== undefined
             ? input.metadataJson
@@ -107,15 +157,21 @@ export class DrizzlePlayerRepository {
     return this.findById(id);
   }
 
-  async findByNameExact(name: string): Promise<Player | null> {
+  async findByNameExact(
+    ownerUserId: string,
+    name: string,
+  ): Promise<Player | null> {
     const trimmed = name.trim();
     const rows = await this.db
       .select()
       .from(players)
       .where(
-        or(
-          sql`lower(${players.name}) = lower(${trimmed})`,
-          sql`lower(${players.displayName}) = lower(${trimmed})`,
+        and(
+          eq(players.ownerUserId, ownerUserId),
+          or(
+            sql`lower(${players.name}) = lower(${trimmed})`,
+            sql`lower(${players.displayName}) = lower(${trimmed})`,
+          ),
         ),
       )
       .limit(1);
@@ -124,6 +180,6 @@ export class DrizzlePlayerRepository {
 
   async delete(id: string): Promise<boolean> {
     const result = await this.db.delete(players).where(eq(players.id, id));
-    return (result.changes ?? 0) > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 }

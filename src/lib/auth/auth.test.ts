@@ -156,17 +156,19 @@ describe("TASK 002 session cookie privacy", () => {
 
 describe("TASK 002 requireRole matrix", () => {
   const matrix: Record<PolicyAction, UserRole[]> = {
-    setup: ["ADMIN"],
-    import: ["ADMIN", "OPERATOR"],
-    draw: ["ADMIN", "OPERATOR"],
-    schedule: ["ADMIN", "OPERATOR"],
-    score: ["ADMIN", "OPERATOR", "SCOREKEEPER"],
-    correct: ["ADMIN", "OPERATOR"],
-    archive: ["ADMIN"],
-    view: ["ADMIN", "OPERATOR", "SCOREKEEPER", "VIEWER"],
+    setup: ["SUPER_ADMIN", "ADMIN"],
+    courtPin: ["SUPER_ADMIN", "ADMIN", "OPERATOR"],
+    import: ["SUPER_ADMIN", "ADMIN", "OPERATOR"],
+    draw: ["SUPER_ADMIN", "ADMIN", "OPERATOR"],
+    schedule: ["SUPER_ADMIN", "ADMIN", "OPERATOR"],
+    score: ["SUPER_ADMIN", "ADMIN", "OPERATOR", "SCOREKEEPER"],
+    correct: ["SUPER_ADMIN", "ADMIN", "OPERATOR"],
+    archive: ["SUPER_ADMIN", "ADMIN"],
+    view: ["SUPER_ADMIN", "ADMIN", "OPERATOR", "SCOREKEEPER", "VIEWER"],
   };
 
   const allRoles: UserRole[] = [
+    "SUPER_ADMIN",
     "ADMIN",
     "OPERATOR",
     "SCOREKEEPER",

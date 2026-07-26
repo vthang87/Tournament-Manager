@@ -14,7 +14,6 @@ import { DrizzleTournamentEventRepository } from "@/db/repositories/tournament-e
 import { DrizzleTournamentRepository } from "@/db/repositories/tournament-repository";
 import { matchRules, stageRules, tournamentEvents } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit";
-import { assertCanPerform } from "@/lib/auth/policies";
 import { createId, nowIso } from "@/lib/id";
 import {
   createMatchRuleSchema,
@@ -22,6 +21,7 @@ import {
   updateMatchRuleSchema,
 } from "@/lib/validation/schemas";
 import { eq } from "drizzle-orm";
+import { TournamentAccessService } from "./tournament-access-service";
 
 function validateScoringShape(input: {
   bestOfSets: number;
@@ -45,10 +45,12 @@ function validateScoringShape(input: {
 }
 
 export class MatchRuleService {
+  private readonly access: TournamentAccessService;
   private readonly events: DrizzleTournamentEventRepository;
   private readonly tournaments: DrizzleTournamentRepository;
 
   constructor(private readonly db: AppDatabase) {
+    this.access = new TournamentAccessService(db);
     this.events = new DrizzleTournamentEventRepository(db);
     this.tournaments = new DrizzleTournamentRepository(db);
   }
@@ -89,8 +91,8 @@ export class MatchRuleService {
   }
 
   async create(actor: ActorContext, raw: unknown): Promise<MatchRuleRecord> {
-    assertCanPerform(actor.role, "setup");
     const input = parseOrThrow(createMatchRuleSchema, raw);
+    await this.access.assertForEvent(actor, input.eventId, "setup");
     await this.assertEventSetup(input.eventId);
 
     const scoring = {
@@ -134,7 +136,7 @@ export class MatchRuleService {
     id: string,
     raw: unknown,
   ): Promise<MatchRuleRecord> {
-    assertCanPerform(actor.role, "setup");
+    await this.access.assertForRule(actor, id, "setup");
     const input = parseOrThrow(
       updateMatchRuleSchema,
       raw,
@@ -190,7 +192,7 @@ export class MatchRuleService {
   }
 
   async delete(actor: ActorContext, id: string): Promise<void> {
-    assertCanPerform(actor.role, "setup");
+    await this.access.assertForRule(actor, id, "setup");
     const existing = await this.getById(id);
     await this.assertEventSetup(existing.eventId);
 

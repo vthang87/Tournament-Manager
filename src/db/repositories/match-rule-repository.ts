@@ -120,6 +120,6 @@ export class DrizzleMatchRuleRepository {
 
   async delete(id: string): Promise<boolean> {
     const result = await this.db.delete(matchRules).where(eq(matchRules.id, id));
-    return (result.changes ?? 0) > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 }

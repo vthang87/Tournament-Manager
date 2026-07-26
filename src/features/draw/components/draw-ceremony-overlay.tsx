@@ -59,6 +59,7 @@ export function DrawCeremonyOverlay({
   const rootRef = useRef<HTMLDivElement>(null);
   const spotlightRef = useRef<HTMLDivElement>(null);
   const shuffleRef = useRef<HTMLParagraphElement>(null);
+  const shuffleClubRef = useRef<HTMLParagraphElement>(null);
   const reelRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const confettiRef = useRef<HTMLDivElement>(null);
@@ -203,7 +204,7 @@ export function DrawCeremonyOverlay({
       };
 
       function flyNameToGroup(placement: CeremonyPlacement) {
-        const fromEl = shuffleRef.current;
+        const fromEl = reelRef.current;
         const toEl = root.querySelector(
           `[data-group-slot="${placement.groupId}"]`,
         );
@@ -336,14 +337,9 @@ export function DrawCeremonyOverlay({
             );
           }
 
-          const namesPool = ordered
+          const placementsPool = ordered
             .slice(i)
-            .map((p) => p.displayName)
-            .concat(
-              ordered
-                .slice(0, Math.min(12, Math.max(i, 1)))
-                .map((p) => p.displayName),
-            );
+            .concat(ordered.slice(0, Math.min(12, Math.max(i, 1))));
 
           const shuffleTl = gsap.timeline({
             onComplete: () => {
@@ -419,7 +415,7 @@ export function DrawCeremonyOverlay({
             },
           });
 
-          if (shuffleRef.current && namesPool.length > 0) {
+          if (shuffleRef.current && placementsPool.length > 0) {
             if (reelRef.current) {
               gsap.fromTo(
                 reelRef.current,
@@ -434,14 +430,21 @@ export function DrawCeremonyOverlay({
             }
 
             for (let tick = 0; tick < pace.shuffleTicks; tick++) {
-              const name =
-                namesPool[
-                  Math.floor(Math.random() * namesPool.length)
+              const candidate =
+                placementsPool[
+                  Math.floor(Math.random() * placementsPool.length)
                 ]!;
               shuffleTl.call(
                 () => {
                   if (shuffleRef.current) {
-                    shuffleRef.current.textContent = name;
+                    shuffleRef.current.textContent = candidate.displayName;
+                  }
+                  if (shuffleClubRef.current) {
+                    shuffleClubRef.current.textContent =
+                      formatClubLabel(
+                        candidate.clubCode,
+                        candidate.clubName,
+                      ) ?? t("ceremonyNoClub");
                   }
                   if (reelRef.current) {
                     gsap.fromTo(
@@ -459,6 +462,13 @@ export function DrawCeremonyOverlay({
             shuffleTl.call(() => {
               if (shuffleRef.current) {
                 shuffleRef.current.textContent = placement.displayName;
+              }
+              if (shuffleClubRef.current) {
+                shuffleClubRef.current.textContent =
+                  formatClubLabel(
+                    placement.clubCode,
+                    placement.clubName,
+                  ) ?? t("ceremonyNoClub");
               }
             });
 
@@ -700,41 +710,29 @@ export function DrawCeremonyOverlay({
                 <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-emerald-300">
                   {t("ceremonyDrawing")}
                 </p>
-                <div
-                  ref={reelRef}
-                  className="relative mx-auto min-h-[4.5rem] overflow-hidden rounded-2xl border border-white/10 bg-black/35 px-3 py-4"
-                >
-                  <div className="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-black/70 to-transparent" />
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-black/70 to-transparent" />
-                  <p
-                    ref={shuffleRef}
-                    className="text-xl font-bold leading-snug tracking-tight text-white md:text-2xl"
-                  >
-                    {current.displayName}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-sky-400/25 bg-sky-400/10 px-4 py-2.5">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-sky-200/80">
-                    {t("ceremonyClub")}
-                  </p>
-                  {formatClubLabel(current.clubCode, current.clubName) ? (
-                    <div className="mt-1 space-y-0.5">
-                      {current.clubCode ? (
-                        <p className="text-lg font-bold tracking-wide text-sky-100">
-                          {current.clubCode}
-                        </p>
-                      ) : null}
-                      {current.clubName ? (
-                        <p className="text-sm font-medium text-sky-100/90">
-                          {current.clubName}
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <p className="mt-0.5 text-base font-semibold tracking-tight text-sky-100">
-                      {t("ceremonyNoClub")}
+                <div ref={reelRef} className="space-y-3">
+                  <div className="relative mx-auto min-h-[4.5rem] overflow-hidden rounded-2xl border border-white/10 bg-black/35 px-3 py-4">
+                    <div className="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-black/70 to-transparent" />
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-black/70 to-transparent" />
+                    <p
+                      ref={shuffleRef}
+                      className="text-xl font-bold leading-snug tracking-tight text-white md:text-2xl"
+                    >
+                      {current.displayName}
                     </p>
-                  )}
+                  </div>
+                  <div className="rounded-xl border border-sky-400/25 bg-sky-400/10 px-4 py-2.5">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-sky-200/80">
+                      {t("ceremonyClub")}
+                    </p>
+                    <p
+                      ref={shuffleClubRef}
+                      className="mt-1 text-base font-bold tracking-wide text-sky-100"
+                    >
+                      {formatClubLabel(current.clubCode, current.clubName) ??
+                        t("ceremonyNoClub")}
+                    </p>
+                  </div>
                 </div>
                 <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3">
                   <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-200/80">

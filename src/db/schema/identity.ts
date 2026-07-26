@@ -14,7 +14,13 @@ export const users = pgTable(
     passwordHash: text("password_hash").notNull(),
     displayName: text("display_name").notNull(),
     role: text("role", {
-      enum: ["ADMIN", "OPERATOR", "SCOREKEEPER", "VIEWER"],
+      enum: [
+        "SUPER_ADMIN",
+        "ADMIN",
+        "OPERATOR",
+        "SCOREKEEPER",
+        "VIEWER",
+      ],
     })
       .notNull()
       .default("VIEWER"),

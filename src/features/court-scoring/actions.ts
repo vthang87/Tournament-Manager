@@ -28,6 +28,7 @@ import {
   readCourtAccessSession,
   type CourtAccessSession,
 } from "@/lib/auth/court-session";
+import { verifyCourtLinkToken } from "@/lib/auth/court-link-token";
 
 function courtActor(courtId: string): ActorContext {
   return {
@@ -177,6 +178,31 @@ export async function unlockCourtAction(
     const ok = await new CourtService(db).verifyAccessPin(court.id, pin);
     if (!ok) {
       throw new UnauthorizedError("Invalid PIN");
+    }
+    await createCourtAccessSession({
+      type: "court",
+      courtId: court.id,
+      tournamentId: tournament.id,
+    });
+    revalidateCourtScoring(slug, code, tournament.id);
+  });
+}
+
+export async function unlockCourtWithLinkTokenAction(
+  slug: string,
+  code: string,
+  token: string,
+): Promise<ActionResult> {
+  return withCourtAction(async () => {
+    const { db, tournament, court } = await resolveCourtContext(slug, code);
+    const withHash = await new DrizzleCourtRepository(
+      db,
+    ).findByIdWithPinHash(court.id);
+    if (
+      !withHash?.accessPinHash ||
+      !verifyCourtLinkToken(court.id, withHash.accessPinHash, token)
+    ) {
+      throw new UnauthorizedError("Invalid court access link");
     }
     await createCourtAccessSession({
       type: "court",

@@ -41,7 +41,6 @@ import { DrizzleTournamentEventRepository } from "@/db/repositories/tournament-e
 import { DrizzleTournamentRepository } from "@/db/repositories/tournament-repository";
 import { matches as matchesTable } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit";
-import { assertCanPerform } from "@/lib/auth/policies";
 import { createId, nowIso } from "@/lib/id";
 import {
   adminResetBracketSchema,
@@ -50,6 +49,7 @@ import {
   parseOrThrow,
 } from "@/lib/validation/schemas";
 import { eq } from "drizzle-orm";
+import { TournamentAccessService } from "./tournament-access-service";
 import { StandingsService } from "./standings-service";
 
 function generationKeyFor(stageId: string, engineMatchId: string): string {
@@ -105,6 +105,7 @@ function knockoutHasRealPlay(existing: MatchRecord[]): boolean {
  * Qualification resolution + knockout bracket persistence / advance.
  */
 export class BracketService {
+  private readonly access: TournamentAccessService;
   private readonly matches: DrizzleMatchRepository;
   private readonly stages: DrizzleStageRepository;
   private readonly events: DrizzleTournamentEventRepository;
@@ -114,6 +115,7 @@ export class BracketService {
   private readonly standings: StandingsService;
 
   constructor(private readonly db: AppDatabase) {
+    this.access = new TournamentAccessService(db);
     this.matches = new DrizzleMatchRepository(db);
     this.stages = new DrizzleStageRepository(db);
     this.events = new DrizzleTournamentEventRepository(db);
@@ -127,8 +129,12 @@ export class BracketService {
     actor: ActorContext,
     raw: unknown,
   ): Promise<QualificationRuleRecord> {
-    assertCanPerform(actor.role, "setup");
     const input = parseOrThrow(createQualificationRuleSchema, raw);
+    await this.access.assertForStage(
+      actor,
+      input.sourceStageId,
+      "setup",
+    );
     const source = await this.stages.findById(input.sourceStageId);
     const target = await this.stages.findById(input.targetStageId);
     if (!source || !target) {
@@ -173,7 +179,7 @@ export class BracketService {
     sourceStageId: string,
     targetStageId?: string,
   ): Promise<{ qualifiers: Qualifier[]; rule: QualificationRule }> {
-    assertCanPerform(actor.role, "draw");
+    await this.access.assertForStage(actor, sourceStageId, "draw");
     const ruleRecord = targetStageId
       ? await this.qualificationRules.findByStages(sourceStageId, targetStageId)
       : await this.qualificationRules.findBySourceStage(sourceStageId);
@@ -246,8 +252,8 @@ export class BracketService {
     qualifiers: Qualifier[];
     warnings: EngineWarning[];
   }> {
-    assertCanPerform(actor.role, "draw");
     const input = parseOrThrow(generateBracketSchema, raw);
+    await this.access.assertForStage(actor, input.sourceStageId, "draw");
     const source = await this.stages.findById(input.sourceStageId);
     const target = await this.stages.findById(input.targetStageId);
     if (!source || !target) {
@@ -512,8 +518,8 @@ export class BracketService {
     actor: ActorContext,
     raw: unknown,
   ): Promise<{ deleted: number }> {
-    assertCanPerform(actor.role, "setup");
     const input = parseOrThrow(adminResetBracketSchema, raw);
+    await this.access.assertForStage(actor, input.stageId, "setup");
     const stage = await this.stages.findById(input.stageId);
     if (!stage) {
       throw new NotFoundError(`Stage ${input.stageId} not found`);
@@ -551,8 +557,8 @@ export class BracketService {
     warnings: EngineWarning[];
     bracket: Bracket;
   }> {
-    assertCanPerform(actor.role, "draw");
     const input = parseOrThrow(generateBracketSchema, raw);
+    await this.access.assertForStage(actor, input.sourceStageId, "draw");
     const source = await this.stages.findById(input.sourceStageId);
     const target = await this.stages.findById(input.targetStageId);
     if (!source || !target) {
@@ -603,7 +609,7 @@ export class BracketService {
     actor: ActorContext,
     stageId: string,
   ): Promise<{ stageId: string; status: "COMPLETED" }> {
-    assertCanPerform(actor.role, "draw");
+    await this.access.assertForStage(actor, stageId, "draw");
     const stage = await this.stages.findById(stageId);
     if (!stage) {
       throw new NotFoundError(`Stage ${stageId} not found`);

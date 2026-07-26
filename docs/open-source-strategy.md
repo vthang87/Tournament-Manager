@@ -2,6 +2,23 @@
 
 > Trạng thái: đề xuất để triển khai sau, chưa nằm trong phạm vi MVP hiện tại.
 
+## Cập nhật nền tảng đã triển khai
+
+Ứng dụng hiện tại đã chuẩn hóa một phần mô hình cần thiết trước khi tách package:
+
+- Danh mục sport hệ thống gồm badminton và pickleball.
+- Mỗi tournament thuộc một sport và một owner.
+- VĐV có thể thuộc nhiều sport; ranking và CLB được lưu riêng theo sport.
+- Tournament được chia sẻ theo từng user với role riêng cho từng giải.
+- `SUPER_ADMIN` quản lý tài khoản ở cấp nền tảng; `ADMIN` tiếp tục là vai trò
+  quản trị trong phạm vi từng giải.
+- Rule preset và tournament template được gắn sport, lọc và kiểm tra ở server.
+- Sports và preset vẫn là dữ liệu hệ thống; custom preset chưa nằm trong phạm vi.
+
+Các thay đổi này được triển khai trong monolith trước. Việc chuyển code sang
+`packages/core`, `packages/plugin-badminton` và `packages/plugin-pickleball`
+vẫn thực hiện theo các phase bên dưới.
+
 ## 1. Mục tiêu
 
 Xây dựng Tournament Manager thành một nền tảng quản lý giải đấu có lõi độc lập
@@ -307,4 +324,3 @@ Chỉ bắt đầu migration khi:
   badminton-specific.
 - Có kế hoạch migration import path và database snapshot mà không làm gián đoạn
   sản phẩm hiện tại.
-

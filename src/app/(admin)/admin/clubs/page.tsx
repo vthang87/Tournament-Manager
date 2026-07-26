@@ -8,10 +8,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import { ClubService } from "@/application/services";
 import { getDb } from "@/db/client";
 import { getCurrentUser } from "@/lib/auth/require-auth";
-import { canPerform } from "@/lib/auth/policies";
 import { pageTitle } from "@/lib/page-title";
 
 export async function generateMetadata() {
@@ -29,15 +29,24 @@ export default async function ClubsPage({
   const { q } = await searchParams;
   const t = await getTranslations("clubs");
   const tc = await getTranslations("common");
-  const clubs = await new ClubService(getDb()).list(q);
   const user = await getCurrentUser();
-  const canImport = user ? canPerform(user.role, "import") : false;
+  if (!user) {
+    return null;
+  }
+  const clubs = await new ClubService(getDb()).list(
+    { userId: user.id, role: user.role },
+    q,
+  );
+  const canImport = true;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">{t("title")}</h2>
+          <AdminBreadcrumbs section="clubs" current={t("title")} />
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+            {t("title")}
+          </h2>
           <p className="mt-1 text-sm text-slate-600">{t("description")}</p>
         </div>
         {canImport ? (

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import {
   Card,
   CardContent,
@@ -12,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import {
   CourtService,
   EventService,
+  SportService,
+  TournamentAccessService,
   TournamentService,
 } from "@/application/services";
 import { getDb } from "@/db/client";
@@ -69,28 +72,35 @@ export default async function TournamentDetailPage({
     notFound();
   }
 
-  const events = await new EventService(db).listByTournament(tournamentId);
-  const courts = await new CourtService(db).listByTournament(tournamentId);
   const user = await getCurrentUser();
-  const canSetup = user ? canPerform(user.role, "setup") : false;
-  const canArchive = user ? canPerform(user.role, "archive") : false;
+  if (!user) {
+    notFound();
+  }
+  const actor = { userId: user.id, role: user.role };
+  const [events, courts, access, sport] = await Promise.all([
+    new EventService(db).listByTournament(tournamentId),
+    new CourtService(db).listByTournament(tournamentId),
+    new TournamentAccessService(db).resolve(actor, tournamentId),
+    new SportService(db).getById(tournament.sportId),
+  ]);
+  const canSetup = canPerform(access.role, "setup");
+  const canArchive = canPerform(access.role, "archive");
   const nextStatus = NEXT_STATUS[tournament.status];
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link
-            href="/admin/tournaments"
-            className="text-sm text-slate-600 hover:text-slate-900"
-          >
-            ← {t("title")}
-          </Link>
+          <AdminBreadcrumbs
+            tournament={{ id: tournamentId, name: tournament.name }}
+            current={tournament.name}
+          />
           <h2 className="mt-2 text-2xl font-semibold tracking-tight">
             {tournament.name}
           </h2>
           <p className="mt-1 text-sm text-slate-600">
-            {tournament.location ?? tc("noLocation")} · {tournament.timezone} ·{" "}
+            {sport.name} · {tournament.location ?? tc("noLocation")} ·{" "}
+            {tournament.timezone} ·{" "}
             <span className="font-medium text-slate-800">
               {tStatus(tournamentStatusKey(tournament.status))}
             </span>
@@ -103,6 +113,14 @@ export default async function TournamentDetailPage({
               className="inline-flex h-9 items-center rounded-md border border-slate-200 bg-white px-3 text-sm hover:bg-slate-50"
             >
               {tc("edit")}
+            </Link>
+          ) : null}
+          {access.isOwner ? (
+            <Link
+              href={`/admin/tournaments/${tournamentId}/members`}
+              className="inline-flex h-9 items-center rounded-md border border-slate-200 bg-white px-3 text-sm hover:bg-slate-50"
+            >
+              Cộng tác viên
             </Link>
           ) : null}
           {canSetup && nextStatus ? (

@@ -9,8 +9,12 @@ import {
   stages,
   tournamentEvents,
   tournaments,
+  tournamentMembers,
   users,
+  sports,
 } from "./schema";
+import { SPORT_IDS } from "@/core/domain";
+import { encryptCourtPin } from "@/lib/auth/court-pin-crypto";
 import { hashPassword } from "@/lib/auth/password";
 import { nowIso } from "@/lib/id";
 import { seedDemoTournament } from "./seed-demo-data";
@@ -36,7 +40,7 @@ async function upsertAdmin(db: AppDatabase): Promise<void> {
         username,
         passwordHash,
         displayName,
-        role: "ADMIN",
+        role: "SUPER_ADMIN",
         active: true,
         updatedAt: now,
       })
@@ -49,11 +53,122 @@ async function upsertAdmin(db: AppDatabase): Promise<void> {
     username,
     passwordHash,
     displayName,
-    role: "ADMIN",
+    role: "SUPER_ADMIN",
     active: true,
     createdAt: now,
     updatedAt: now,
   });
+}
+
+async function upsertDemoUsers(db: AppDatabase): Promise<void> {
+  const password =
+    process.env.SEED_DEMO_PASSWORD ?? "demo1234";
+  const passwordHash = await hashPassword(password);
+  const now = nowIso();
+  const definitions = [
+    {
+      id: SEED_IDS.demoUsers.admin,
+      username: "demo-admin",
+      displayName: "Demo Tournament Admin",
+      role: "ADMIN" as const,
+    },
+    {
+      id: SEED_IDS.demoUsers.operator,
+      username: "demo-operator",
+      displayName: "Demo Operator",
+      role: "OPERATOR" as const,
+    },
+    {
+      id: SEED_IDS.demoUsers.scorekeeper,
+      username: "demo-scorekeeper",
+      displayName: "Demo Scorekeeper",
+      role: "SCOREKEEPER" as const,
+    },
+    {
+      id: SEED_IDS.demoUsers.viewer,
+      username: "demo-viewer",
+      displayName: "Demo Viewer",
+      role: "VIEWER" as const,
+    },
+  ];
+
+  for (const definition of definitions) {
+    await db
+      .insert(users)
+      .values({
+        ...definition,
+        passwordHash,
+        active: true,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          username: definition.username,
+          passwordHash,
+          displayName: definition.displayName,
+          role: definition.role,
+          active: true,
+          updatedAt: now,
+        },
+      });
+  }
+}
+
+async function upsertDemoTournamentMembers(
+  db: AppDatabase,
+): Promise<void> {
+  const now = nowIso();
+  const definitions = [
+    { userId: SEED_IDS.demoUsers.admin, role: "ADMIN" as const },
+    { userId: SEED_IDS.demoUsers.operator, role: "OPERATOR" as const },
+    {
+      userId: SEED_IDS.demoUsers.scorekeeper,
+      role: "SCOREKEEPER" as const,
+    },
+    { userId: SEED_IDS.demoUsers.viewer, role: "VIEWER" as const },
+  ];
+
+  for (const definition of definitions) {
+    await db
+      .insert(tournamentMembers)
+      .values({
+        tournamentId: SEED_IDS.tournament,
+        userId: definition.userId,
+        role: definition.role,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [
+          tournamentMembers.tournamentId,
+          tournamentMembers.userId,
+        ],
+        set: { role: definition.role, updatedAt: now },
+      });
+  }
+}
+
+async function upsertSports(db: AppDatabase): Promise<void> {
+  const now = nowIso();
+  for (const definition of [
+    { id: SPORT_IDS.BADMINTON, code: "BADMINTON", name: "Badminton" },
+    { id: SPORT_IDS.PICKLEBALL, code: "PICKLEBALL", name: "Pickleball" },
+  ]) {
+    await db
+      .insert(sports)
+      .values({ ...definition, active: true, createdAt: now, updatedAt: now })
+      .onConflictDoUpdate({
+        target: sports.id,
+        set: {
+          code: definition.code,
+          name: definition.name,
+          active: true,
+          updatedAt: now,
+        },
+      });
+  }
 }
 
 async function upsertTournament(db: AppDatabase): Promise<void> {
@@ -67,6 +182,8 @@ async function upsertTournament(db: AppDatabase): Promise<void> {
   // Status advanced by seedDemoTournament — preserve later statuses on re-seed.
   const values = {
     id: SEED_IDS.tournament,
+    ownerUserId: SEED_IDS.adminUser,
+    sportId: SPORT_IDS.BADMINTON,
     name: "HCMC Badminton Open 2026",
     slug: "hcmc-badminton-open-2026",
     description:
@@ -209,6 +326,7 @@ async function upsertCourts(db: AppDatabase): Promise<void> {
   const now = nowIso();
   /** Demo referee PIN for court kiosk scoring (`/r/{slug}/c/{code}`). */
   const demoPinHash = await hashPassword("1234");
+  const demoPinEncrypted = encryptCourtPin("1234");
   const courtDefs = [
     { id: SEED_IDS.courts[0], name: "Court 1", code: "C1" },
     { id: SEED_IDS.courts[1], name: "Court 2", code: "C2" },
@@ -230,6 +348,7 @@ async function upsertCourts(db: AppDatabase): Promise<void> {
       code: court.code,
       active: true,
       accessPinHash: demoPinHash,
+      accessPinEncrypted: demoPinEncrypted,
       updatedAt: now,
     };
 
@@ -306,7 +425,10 @@ export async function seedDatabase(connectionString?: string): Promise<void> {
 
   try {
     await upsertAdmin(db);
+    await upsertDemoUsers(db);
+    await upsertSports(db);
     await upsertTournament(db);
+    await upsertDemoTournamentMembers(db);
     await upsertEvent(db);
     await upsertRules(db);
     await upsertCourts(db);

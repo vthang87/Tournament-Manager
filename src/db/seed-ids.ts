@@ -1,6 +1,12 @@
 /** Stable seed IDs used by the idempotent seed script and local fixtures. */
 export const SEED_IDS = {
   adminUser: "seed-user-admin",
+  demoUsers: {
+    admin: "seed-user-demo-admin",
+    operator: "seed-user-demo-operator",
+    scorekeeper: "seed-user-demo-scorekeeper",
+    viewer: "seed-user-demo-viewer",
+  },
   tournament: "seed-tournament-open-2026",
   eventMensDoubles: "seed-event-mens-doubles",
   ruleGroup: "seed-rule-group-bo1-21",

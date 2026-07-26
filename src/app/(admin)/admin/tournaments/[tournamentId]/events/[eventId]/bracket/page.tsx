@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import {
   BracketService,
   DrawService,
@@ -8,6 +9,7 @@ import {
   EventService,
   StageService,
   TournamentService,
+  TournamentAccessService,
 } from "@/application/services";
 import { getDb } from "@/db/client";
 import { DrizzleDrawRepository } from "@/db/repositories/draw-repository";
@@ -103,8 +105,15 @@ export default async function BracketPage({
   }
 
   const user = await getCurrentUser();
-  const canDraw = user ? canPerform(user.role, "draw") : false;
-  const canAdminReset = user ? canPerform(user.role, "setup") : false;
+  if (!user) {
+    notFound();
+  }
+  const access = await new TournamentAccessService(db).resolve(
+    { userId: user.id, role: user.role },
+    tournamentId,
+  );
+  const canDraw = canPerform(access.role, "draw");
+  const canAdminReset = canPerform(access.role, "setup");
 
   if (sourceStage && targetStage && user && canDraw) {
     const rule = await bracketService.getQualificationRule(
@@ -198,12 +207,11 @@ export default async function BracketPage({
   return (
     <div className="space-y-6">
       <div className="print:hidden">
-        <Link
-          href={`/admin/tournaments/${tournamentId}/events/${eventId}`}
-          className="text-sm text-slate-600 hover:text-slate-900"
-        >
-          ← {event.name}
-        </Link>
+        <AdminBreadcrumbs
+          tournament={{ id: tournamentId }}
+          event={{ id: eventId, name: event.name }}
+          current={t("title")}
+        />
         <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-2xl font-semibold tracking-tight">

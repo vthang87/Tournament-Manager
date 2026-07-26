@@ -7,10 +7,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { TournamentService } from "@/application/services";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
+import { SportService, TournamentService } from "@/application/services";
 import { getDb } from "@/db/client";
 import { getCurrentUser } from "@/lib/auth/require-auth";
-import { canPerform } from "@/lib/auth/policies";
 import { tournamentStatusKey } from "@/i18n/status-labels";
 import { pageTitle } from "@/lib/page-title";
 
@@ -25,15 +25,26 @@ export default async function TournamentsPage() {
   const t = await getTranslations("tournaments");
   const tc = await getTranslations("common");
   const tStatus = await getTranslations("status");
-  const tournaments = await new TournamentService(getDb()).list();
   const user = await getCurrentUser();
-  const canSetup = user ? canPerform(user.role, "setup") : false;
+  if (!user) {
+    return null;
+  }
+  const tournaments = await new TournamentService(getDb()).list({
+    userId: user.id,
+    role: user.role,
+  });
+  const sports = await new SportService(getDb()).listActive();
+  const sportName = new Map(sports.map((sport) => [sport.id, sport.name]));
+  const canSetup = true;
 
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">{t("title")}</h2>
+          <AdminBreadcrumbs section="tournaments" current={t("title")} />
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+            {t("title")}
+          </h2>
           <p className="mt-1 text-sm text-slate-600">{t("listDescription")}</p>
         </div>
         {canSetup ? (
@@ -79,6 +90,7 @@ export default async function TournamentsPage() {
                     </Link>
                   </CardTitle>
                   <CardDescription>
+                    {sportName.get(tournament.sportId) ?? tournament.sportId} ·{" "}
                     {tournament.location ?? tc("noLocation")} ·{" "}
                     {tournament.startDate ?? tc("tbd")} →{" "}
                     {tournament.endDate ?? tc("tbd")}

@@ -1,6 +1,7 @@
 # Tournament Manager
 
-Internal tournament operations platform (badminton first). Stack: Next.js App Router, TypeScript, Drizzle ORM, SQLite, Tailwind CSS.
+Internal tournament operations platform. Stack: Next.js App Router, TypeScript,
+Drizzle ORM, PostgreSQL, Tailwind CSS.
 
 ## Prerequisites
 
@@ -20,7 +21,9 @@ pnpm dev
 
 Open [http://localhost:3000/login](http://localhost:3000/login). The seed creates:
 
-- Admin user `admin` / `admin123` (Argon2-hashed; re-seed refreshes the hash)
+- Super Admin user `admin` / `admin123`
+- Demo users for `ADMIN`, `OPERATOR`, `SCOREKEEPER`, and `VIEWER` with
+  password `demo1234`
 - Tournament `HCMC Badminton Open 2026` (slug `hcmc-badminton-open-2026`)
 - Men's Doubles event, 3 match-rule presets, 4 courts
 - Court referee PIN `1234` on all demo courts (kiosk scoring)
@@ -101,7 +104,8 @@ Pickleball uses one game to 15 for group/playoff matches and best-of-three to 11
 for medal matches, win by two. The engine currently requires a finite maximum,
 so the pickleball technical cap is set to 99.
 
-Credentials remain `admin` / `admin123`; all demo court links use PIN `1234`.
+Credentials include `admin` / `admin123` plus role-specific demo users with
+password `demo1234`; all demo court links use PIN `1234`.
 
 ## User guide website
 
@@ -192,6 +196,12 @@ Local non-Docker backup: copy `./data/tournament-manager.db` (and `-wal`/`-shm` 
 - Business logic stays in application services + tournament engine; UI stays thin.
 - Public DTOs strip phone/email/audit/user fields.
 - Admin routes are protected via server-side session checks in the admin layout.
+- Tournaments, players, and clubs are owner-scoped. Tournament owners can share
+  individual tournaments with existing users using per-tournament roles.
+- `SUPER_ADMIN` is the platform-level role. It can manage accounts at
+  `/admin/users`; tournament-level `ADMIN` remains scoped to a specific event.
+- Tournaments and system rule presets are sport-scoped; players can have
+  separate ranking and club profiles for multiple sports.
 
 See `docs/architecture.md` and `docs/cursor-implementation-plan.md`.
 

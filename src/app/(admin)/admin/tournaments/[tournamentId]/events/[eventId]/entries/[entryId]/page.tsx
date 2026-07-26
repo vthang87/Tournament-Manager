@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import {
   ClubService,
   EntryService,
@@ -11,7 +11,7 @@ import {
 import { getDb } from "@/db/client";
 import { updateEntryAction } from "@/features/entries/actions";
 import { EntryRegistrationForm } from "@/features/entries/components/entry-registration-form";
-import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import { requireAuthOrRedirect } from "@/lib/auth/require-auth";
 import { pageTitle } from "@/lib/page-title";
 
 export async function generateMetadata({
@@ -49,7 +49,8 @@ export default async function EditEntryPage({
     entryId: string;
   }>;
 }) {
-  await requireRoleOrRedirect(["ADMIN", "OPERATOR"]);
+  const user = await requireAuthOrRedirect();
+  const actor = { userId: user.id, role: user.role };
   const { tournamentId, eventId, entryId } = await params;
   const db = getDb();
   const t = await getTranslations("entries");
@@ -66,8 +67,8 @@ export default async function EditEntryPage({
   }
 
   const [players, clubs, registeredPlayerIds] = await Promise.all([
-    new PlayerService(db).list(),
-    new ClubService(db).list(),
+    new PlayerService(db).listForTournament(actor, tournamentId),
+    new ClubService(db).listForTournament(actor, tournamentId),
     new EntryService(db).listRegisteredPlayerIds(eventId, entryId),
   ]);
   const taken = new Set(registeredPlayerIds);
@@ -84,12 +85,17 @@ export default async function EditEntryPage({
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <div>
-        <Link
-          href={`/admin/tournaments/${tournamentId}/events/${eventId}/entries`}
-          className="text-sm text-slate-600 hover:text-slate-900"
-        >
-          ← {isDoubles ? t("pairsTitle") : t("title")}
-        </Link>
+        <AdminBreadcrumbs
+          tournament={{ id: tournamentId }}
+          event={{ id: eventId, name: event.name }}
+          items={[
+            {
+              href: `/admin/tournaments/${tournamentId}/events/${eventId}/entries`,
+              label: isDoubles ? t("pairsTitle") : t("title"),
+            },
+          ]}
+          current={isDoubles ? t("editPair") : t("editEntry")}
+        />
         <h2 className="mt-2 text-2xl font-semibold tracking-tight">
           {isDoubles ? t("editPair") : t("editEntry")}
         </h2>
@@ -102,8 +108,8 @@ export default async function EditEntryPage({
           players={availablePlayers.map((p) => ({
             id: p.id,
             displayName: p.displayName,
-            clubName: p.clubId
-              ? (clubs.find((c) => c.id === p.clubId)?.name ?? null)
+            clubName: p.sports[0]?.clubId
+              ? (clubs.find((c) => c.id === p.sports[0]?.clubId)?.name ?? null)
               : null,
           }))}
           clubs={clubs.map((c) => ({ id: c.id, name: c.name }))}

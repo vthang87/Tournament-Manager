@@ -1,4 +1,7 @@
+import { loadLocalEnv } from "./load-local-env";
 import { seedDatabase } from "./seed";
+
+loadLocalEnv();
 
 seedDatabase()
   .then(() => {

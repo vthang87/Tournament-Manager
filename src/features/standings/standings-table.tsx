@@ -59,7 +59,13 @@ export function StandingsTable({
           return (
             <Fragment key={row.entryId}>
               <TableRow
-                className={cn(row.drawRequired && "bg-amber-50/60")}
+                className={cn(
+                  row.rank === 1
+                    ? "bg-amber-50/80 hover:bg-amber-100/70"
+                    : row.rank === 2
+                      ? "bg-sky-50/80 hover:bg-sky-100/70"
+                      : row.drawRequired && "bg-amber-50/60",
+                )}
               >
                 <TableCell className="font-medium tabular-nums">
                   {row.rank}

@@ -1,6 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { TournamentService } from "@/application/services";
+import {
+  TournamentAccessService,
+  TournamentService,
+} from "@/application/services";
 import { getDb } from "@/db/client";
 import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
 import { pageTitle } from "@/lib/page-title";
@@ -28,7 +31,8 @@ export default async function TournamentLiveBoardRedirectPage({
 }: {
   params: Promise<{ tournamentId: string }>;
 }) {
-  await requireRoleOrRedirect([
+  const user = await requireRoleOrRedirect([
+    "SUPER_ADMIN",
     "ADMIN",
     "OPERATOR",
     "SCOREKEEPER",
@@ -38,6 +42,10 @@ export default async function TournamentLiveBoardRedirectPage({
 
   let tournament;
   try {
+    await new TournamentAccessService(getDb()).resolve(
+      { userId: user.id, role: user.role },
+      tournamentId,
+    );
     tournament = await new TournamentService(getDb()).getById(tournamentId);
   } catch {
     notFound();

@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { ActionForm } from "@/components/shared/action-form";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,7 @@ import { Select } from "@/components/ui/select";
 import { TournamentService } from "@/application/services";
 import { getDb } from "@/db/client";
 import { createEventAction } from "@/features/events/actions";
-import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import { requireAuthOrRedirect } from "@/lib/auth/require-auth";
 import { pageTitle } from "@/lib/page-title";
 
 export async function generateMetadata({
@@ -34,7 +34,7 @@ export default async function NewEventPage({
 }: {
   params: Promise<{ tournamentId: string }>;
 }) {
-  await requireRoleOrRedirect(["ADMIN"]);
+  await requireAuthOrRedirect();
   const { tournamentId } = await params;
   const t = await getTranslations("events");
   const tc = await getTranslations("common");
@@ -49,12 +49,10 @@ export default async function NewEventPage({
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <div>
-        <Link
-          href={`/admin/tournaments/${tournamentId}`}
-          className="text-sm text-slate-600 hover:text-slate-900"
-        >
-          ← {tournament.name}
-        </Link>
+        <AdminBreadcrumbs
+          tournament={{ id: tournamentId, name: tournament.name }}
+          current={t("new")}
+        />
         <h2 className="mt-2 text-2xl font-semibold tracking-tight">{t("new")}</h2>
       </div>
 

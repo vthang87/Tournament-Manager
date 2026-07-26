@@ -162,7 +162,7 @@ export class DrizzleStageRepository {
   async delete(id: string): Promise<boolean> {
     await this.db.delete(stageRules).where(eq(stageRules.stageId, id));
     const result = await this.db.delete(stages).where(eq(stages.id, id));
-    return (result.changes ?? 0) > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   async findByEventAndOrder(

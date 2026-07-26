@@ -1,13 +1,16 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { ActionForm } from "@/components/shared/action-form";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ClubService } from "@/application/services";
 import { getDb } from "@/db/client";
 import { updateClubAction } from "@/features/participants/actions";
-import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import {
+  getCurrentUser,
+  requireAuthOrRedirect,
+} from "@/lib/auth/require-auth";
 import { pageTitle } from "@/lib/page-title";
 
 export async function generateMetadata({
@@ -18,7 +21,14 @@ export async function generateMetadata({
   const { clubId } = await params;
   const t = await getTranslations("clubs");
   try {
-    const club = await new ClubService(getDb()).getById(clubId);
+    const user = await getCurrentUser();
+    if (!user) {
+      return pageTitle(t("title"));
+    }
+    const club = await new ClubService(getDb()).getById(
+      { userId: user.id, role: user.role },
+      clubId,
+    );
     return pageTitle(club.name);
   } catch {
     return pageTitle(t("title"));
@@ -32,14 +42,16 @@ export default async function ClubDetailPage({
 }: {
   params: Promise<{ clubId: string }>;
 }) {
-  await requireRoleOrRedirect(["ADMIN", "OPERATOR", "SCOREKEEPER", "VIEWER"]);
+  const user = await requireAuthOrRedirect();
   const { clubId } = await params;
-  const t = await getTranslations("clubs");
   const tc = await getTranslations("common");
 
   let club;
   try {
-    club = await new ClubService(getDb()).getById(clubId);
+    club = await new ClubService(getDb()).getById(
+      { userId: user.id, role: user.role },
+      clubId,
+    );
   } catch {
     notFound();
   }
@@ -47,12 +59,7 @@ export default async function ClubDetailPage({
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <div>
-        <Link
-          href="/admin/clubs"
-          className="text-sm text-slate-600 hover:text-slate-900"
-        >
-          ← {t("title")}
-        </Link>
+        <AdminBreadcrumbs section="clubs" current={club.name} />
         <h2 className="mt-2 text-2xl font-semibold tracking-tight">
           {club.name}
         </h2>

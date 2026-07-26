@@ -33,6 +33,7 @@ export class DrizzleCourtRepository {
       code: input.code,
       active: input.active ?? true,
       accessPinHash: null as string | null,
+      accessPinEncrypted: null as string | null,
       createdAt: now,
       updatedAt: now,
     };
@@ -100,6 +101,25 @@ export class DrizzleCourtRepository {
     return rows.map(mapCourt);
   }
 
+  async listByTournamentIdWithEncryptedPins(
+    tournamentId: string,
+  ): Promise<
+    (Court & {
+      accessPinHash: string | null;
+      accessPinEncrypted: string | null;
+    })[]
+  > {
+    const rows = await this.db
+      .select()
+      .from(courts)
+      .where(eq(courts.tournamentId, tournamentId));
+    return rows.map((row) => ({
+      ...mapCourt(row),
+      accessPinHash: row.accessPinHash,
+      accessPinEncrypted: row.accessPinEncrypted,
+    }));
+  }
+
   async update(id: string, input: UpdateCourtInput): Promise<Court | null> {
     const existing = await this.findById(id);
     if (!existing) {
@@ -117,14 +137,16 @@ export class DrizzleCourtRepository {
     return this.findById(id);
   }
 
-  async setAccessPinHash(
+  async setAccessPin(
     id: string,
     accessPinHash: string | null,
+    accessPinEncrypted: string | null,
   ): Promise<Court | null> {
     await this.db
       .update(courts)
       .set({
         accessPinHash,
+        accessPinEncrypted,
         updatedAt: nowIso(),
       })
       .where(eq(courts.id, id));
@@ -133,6 +155,6 @@ export class DrizzleCourtRepository {
 
   async delete(id: string): Promise<boolean> {
     const result = await this.db.delete(courts).where(eq(courts.id, id));
-    return (result.changes ?? 0) > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 }

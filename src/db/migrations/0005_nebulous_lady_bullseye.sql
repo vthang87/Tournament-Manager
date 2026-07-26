@@ -1,0 +1,1 @@
+ALTER TABLE "tournament_events" ADD COLUMN "schedule_rest_minutes" integer DEFAULT 0 NOT NULL;
