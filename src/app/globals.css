@@ -18,6 +18,73 @@ body {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
+.schedule-print-area table {
+  page-break-inside: auto;
+}
+
+.schedule-print-area thead {
+  display: table-header-group;
+}
+
+.schedule-print-area tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.schedule-print-area th,
+.schedule-print-area td {
+  border: 1px solid #cbd5e1;
+  padding: 7px 8px;
+  vertical-align: top;
+}
+
+.schedule-print-area th {
+  background: #f1f5f9;
+  font-weight: 700;
+}
+
+.route-progress {
+  --route-progress: 0%;
+  position: fixed;
+  z-index: 100;
+  top: 0;
+  left: 0;
+  width: var(--route-progress);
+  height: 3px;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(90deg, #2563eb, #06b6d4);
+  box-shadow: 0 0 10px rgb(37 99 235 / 55%);
+  transition:
+    width 220ms ease-out,
+    opacity 180ms ease;
+}
+
+.route-progress[data-state="loading"],
+.route-progress[data-state="complete"] {
+  opacity: 1;
+}
+
+.route-progress-fallback {
+  width: 38%;
+  opacity: 1;
+  animation: route-progress-fallback 1.2s ease-in-out infinite;
+}
+
+@keyframes route-progress-fallback {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  55% {
+    transform: translateX(115vw);
+  }
+
+  100% {
+    transform: translateX(275vw);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -55,5 +122,17 @@ body {
 
   .bracket-print-area .shadow-sm {
     box-shadow: none !important;
+  }
+
+  .schedule-print-area {
+    color: #0f172a;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  .schedule-print-area th {
+    background: #f1f5f9 !important;
   }
 }

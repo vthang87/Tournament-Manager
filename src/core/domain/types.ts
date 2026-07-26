@@ -71,6 +71,8 @@ export type TournamentEvent = {
   status: EventStatus;
   defaultMatchRuleId: string | null;
   thirdPlaceMatchEnabled: boolean;
+  scheduleLockedAt: string | null;
+  scheduleRestMinutes: number;
   createdAt: string;
   updatedAt: string;
 };

@@ -2,24 +2,25 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { ActionForm } from "@/components/shared/action-form";
-import { Button } from "@/components/ui/button";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
-  TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CourtService, TournamentService } from "@/application/services";
-import { getDb } from "@/db/client";
 import {
-  createCourtAction,
-  deleteCourtAction,
-} from "@/features/courts/actions";
-import { CourtPinControls } from "@/features/courts/court-pin-controls";
+  CourtService,
+  TournamentAccessService,
+  TournamentService,
+} from "@/application/services";
+import { getDb } from "@/db/client";
+import { createCourtAction } from "@/features/courts/actions";
+import { EditableCourtRow } from "@/features/courts/editable-court-row";
+import { canPerform } from "@/lib/auth/policies";
 import { requireAuthOrRedirect } from "@/lib/auth/require-auth";
 import { pageTitle } from "@/lib/page-title";
 
@@ -46,7 +47,7 @@ export default async function CourtsPage({
 }: {
   params: Promise<{ tournamentId: string }>;
 }) {
-  await requireAuthOrRedirect();
+  const user = await requireAuthOrRedirect();
   const { tournamentId } = await params;
   const db = getDb();
   const t = await getTranslations("courts");
@@ -59,17 +60,20 @@ export default async function CourtsPage({
     notFound();
   }
 
-  const courts = await new CourtService(db).listByTournament(tournamentId);
+  const actor = { userId: user.id, role: user.role };
+  const [courts, access] = await Promise.all([
+    new CourtService(db).listByTournamentWithPins(actor, tournamentId),
+    new TournamentAccessService(db).resolve(actor, tournamentId),
+  ]);
+  const canSetup = canPerform(access.role, "setup");
 
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href={`/admin/tournaments/${tournamentId}`}
-          className="text-sm text-slate-600 hover:text-slate-900"
-        >
-          ← {tournament.name}
-        </Link>
+        <AdminBreadcrumbs
+          tournament={{ id: tournamentId, name: tournament.name }}
+          current={t("title")}
+        />
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h2 className="text-2xl font-semibold tracking-tight">{t("title")}</h2>
           <Link
@@ -82,21 +86,33 @@ export default async function CourtsPage({
         <p className="mt-2 max-w-2xl text-sm text-slate-600">{t("pinHelp")}</p>
       </div>
 
-      <ActionForm
-        className="grid items-end gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-3"
-        actionsClassName=""
-        submitLabel={t("addCourt")}
-        action={createCourtAction.bind(null, tournamentId)}
-      >
-        <div className="space-y-1.5">
-          <Label htmlFor="name">{tc("name")}</Label>
-          <Input id="name" name="name" required placeholder={t("placeholderName")} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="code">{tc("code")}</Label>
-          <Input id="code" name="code" required placeholder={t("placeholderCode")} />
-        </div>
-      </ActionForm>
+      {canSetup ? (
+        <ActionForm
+          className="grid items-end gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-3"
+          actionsClassName=""
+          submitLabel={t("addCourt")}
+          action={createCourtAction.bind(null, tournamentId)}
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor="name">{tc("name")}</Label>
+            <Input
+              id="name"
+              name="name"
+              required
+              placeholder={t("placeholderName")}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="code">{tc("code")}</Label>
+            <Input
+              id="code"
+              name="code"
+              required
+              placeholder={t("placeholderCode")}
+            />
+          </div>
+        </ActionForm>
+      ) : null}
 
       <div className="rounded-lg border border-slate-200 bg-white">
         <Table>
@@ -106,39 +122,18 @@ export default async function CourtsPage({
               <TableHead>{tc("code")}</TableHead>
               <TableHead>{tc("active")}</TableHead>
               <TableHead>{t("refereeAccess")}</TableHead>
-              <TableHead />
+              {canSetup ? <TableHead /> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {courts.map((court) => (
-              <TableRow key={court.id}>
-                <TableCell className="align-top">{court.name}</TableCell>
-                <TableCell className="align-top">{court.code}</TableCell>
-                <TableCell className="align-top">
-                  {court.active ? tc("yes") : tc("no")}
-                </TableCell>
-                <TableCell className="align-top">
-                  <CourtPinControls
-                    tournamentId={tournamentId}
-                    courtId={court.id}
-                    courtCode={court.code}
-                    tournamentSlug={tournament.slug}
-                    hasAccessPin={court.hasAccessPin}
-                  />
-                </TableCell>
-                <TableCell className="align-top text-right">
-                  <form
-                    action={async () => {
-                      "use server";
-                      await deleteCourtAction(tournamentId, court.id);
-                    }}
-                  >
-                    <Button type="submit" size="sm" variant="outline">
-                      {tc("delete")}
-                    </Button>
-                  </form>
-                </TableCell>
-              </TableRow>
+              <EditableCourtRow
+                key={court.id}
+                tournamentId={tournamentId}
+                tournamentSlug={tournament.slug}
+                canSetup={canSetup}
+                court={court}
+              />
             ))}
           </TableBody>
         </Table>

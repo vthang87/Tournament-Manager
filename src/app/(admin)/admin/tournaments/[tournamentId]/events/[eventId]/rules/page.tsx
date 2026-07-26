@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import { ActionForm } from "@/components/shared/action-form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -79,12 +79,11 @@ export default async function MatchRulesPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href={`/admin/tournaments/${tournamentId}/events/${eventId}`}
-          className="text-sm text-slate-600 hover:text-slate-900"
-        >
-          ← {event.name}
-        </Link>
+        <AdminBreadcrumbs
+          tournament={{ id: tournamentId }}
+          event={{ id: eventId, name: event.name }}
+          current={t("title")}
+        />
         <h2 className="mt-2 text-2xl font-semibold tracking-tight">
           {t("title")}
         </h2>

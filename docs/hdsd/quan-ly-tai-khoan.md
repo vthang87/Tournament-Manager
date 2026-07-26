@@ -13,6 +13,11 @@ Chức năng này chỉ hiển thị với tài khoản có vai trò hệ thốn
 
 Đường dẫn trực tiếp: `/admin/users`.
 
+<figure markdown="span">
+  ![Danh sách tài khoản và bộ lọc vai trò](assets/screenshots/26-quan-ly-tai-khoan.png)
+  <figcaption>IMG-26 · Super Admin quản lý tài khoản, vai trò và trạng thái đăng nhập.</figcaption>
+</figure>
+
 ## Tạo tài khoản
 
 1. Trong trang **Tài khoản**, chọn **Tạo tài khoản**.
@@ -65,9 +70,34 @@ Hệ thống không cho phép:
 2. Trong phần **Đặt lại mật khẩu**, nhập mật khẩu mới có ít nhất 8 ký tự.
 3. Chọn **Đặt lại mật khẩu**.
 4. Gửi mật khẩu mới cho người dùng qua kênh an toàn và yêu cầu họ đổi lại
-   khi quy trình đổi mật khẩu cá nhân được cung cấp.
+   tại trang **Hồ sơ cá nhân**.
 
 Mật khẩu cũ hết hiệu lực ngay sau khi thao tác hoàn tất.
+
+## Hồ sơ cá nhân
+
+Mọi tài khoản đã đăng nhập đều có thể mở `/profile` từ tên tài khoản ở góc
+phải màn hình. Tại đây người dùng có thể:
+
+- Xem username, vai trò hệ thống và trạng thái tài khoản.
+- Đổi tên hiển thị.
+- Đổi mật khẩu bằng cách nhập mật khẩu hiện tại và mật khẩu mới.
+
+<figure markdown="span">
+  ![Trang hồ sơ cá nhân](assets/screenshots/27-ho-so-ca-nhan.png)
+  <figcaption>IMG-27 · Hồ sơ cá nhân tại đường dẫn `/profile`.</figcaption>
+</figure>
+
+## Dữ liệu sở hữu và quyền truy cập
+
+- Mỗi câu lạc bộ, vận động viên và giải đấu có chủ sở hữu dữ liệu.
+- `ADMIN` chỉ thấy dữ liệu do mình sở hữu hoặc giải được chia sẻ.
+- `OPERATOR`, `SCOREKEEPER` và `VIEWER` chỉ thấy giải được gán vai trò cộng
+  tác viên tương ứng.
+- Giải không được cấp quyền sẽ không xuất hiện trên bảng điều khiển, menu
+  hoặc danh sách giải.
+- `SUPER_ADMIN` có thể hỗ trợ toàn hệ thống nhưng không làm thay đổi chủ sở
+  hữu của dữ liệu.
 
 !!! warning "An toàn tài khoản"
     Không dùng chung tài khoản `SUPER_ADMIN`. Chỉ cấp quyền này cho người

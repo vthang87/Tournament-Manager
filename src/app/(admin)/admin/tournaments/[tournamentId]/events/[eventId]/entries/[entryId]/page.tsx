@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import {
   ClubService,
   EntryService,
@@ -85,12 +85,17 @@ export default async function EditEntryPage({
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <div>
-        <Link
-          href={`/admin/tournaments/${tournamentId}/events/${eventId}/entries`}
-          className="text-sm text-slate-600 hover:text-slate-900"
-        >
-          ← {isDoubles ? t("pairsTitle") : t("title")}
-        </Link>
+        <AdminBreadcrumbs
+          tournament={{ id: tournamentId }}
+          event={{ id: eventId, name: event.name }}
+          items={[
+            {
+              href: `/admin/tournaments/${tournamentId}/events/${eventId}/entries`,
+              label: isDoubles ? t("pairsTitle") : t("title"),
+            },
+          ]}
+          current={isDoubles ? t("editPair") : t("editEntry")}
+        />
         <h2 className="mt-2 text-2xl font-semibold tracking-tight">
           {isDoubles ? t("editPair") : t("editEntry")}
         </h2>

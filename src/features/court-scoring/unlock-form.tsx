@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { unlockCourtAction } from "./actions";
+import {
+  unlockCourtAction,
+  unlockCourtWithLinkTokenAction,
+} from "./actions";
 
 export function CourtUnlockForm({
   slug,
@@ -24,6 +27,30 @@ export function CourtUnlockForm({
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    const accessToken = params.get("access");
+    if (!accessToken) return;
+
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${window.location.search}`,
+    );
+    startTransition(async () => {
+      const result = await unlockCourtWithLinkTokenAction(
+        slug,
+        code,
+        accessToken,
+      );
+      if (!result.ok) {
+        setError(t("invalidLink"));
+        return;
+      }
+      router.refresh();
+    });
+  }, [code, router, slug, t]);
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 px-4 py-8">

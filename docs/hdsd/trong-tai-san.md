@@ -4,15 +4,15 @@ Trọng tài dùng điện thoại hoặc tablet, không cần tài khoản Admi
 
 ## Mở khóa
 
-1. Mở link `/r/{slug}/c/{mã-sân}`.
-2. Nhập PIN.
+1. Mở link hoặc quét QR do Ban tổ chức cung cấp.
+2. Nếu link chưa tự mở khóa, nhập PIN.
 3. Chọn **Mở khóa**.
 
 Phiên được lưu bằng cookie trong khoảng 12 giờ. Chọn **Khóa** khi trả thiết bị hoặc hết ca.
 
 <figure markdown="span">
-  ![Placeholder màn hình nhập PIN sân](assets/screenshots/15-nhap-pin-san.svg)
-  <figcaption>IMG-15 · Nhập PIN để mở khóa sân · Mobile · Ảnh demo sẽ được bổ sung.</figcaption>
+  ![Màn hình nhập PIN sân](assets/screenshots/15-nhap-pin-san.png)
+  <figcaption>IMG-15 · Nhập PIN để mở khóa sân · Mobile.</figcaption>
 </figure>
 
 ## Khi sân chưa có trận
@@ -21,8 +21,8 @@ Phiên được lưu bằng cookie trong khoảng 12 giờ. Chọn **Khóa** khi
 - Trận chưa gán sân xuất hiện trong hàng chờ; chọn cặp đấu rồi **Bắt đầu ngay**.
 
 <figure markdown="span">
-  ![Placeholder hàng chờ trận đấu trên màn trọng tài](assets/screenshots/16-hang-cho-tran.svg)
-  <figcaption>IMG-16 · Sân trống, trận đã gán và hàng chờ · Mobile · Ảnh demo sẽ được bổ sung.</figcaption>
+  ![Hàng chờ trận đấu trên màn trọng tài](assets/screenshots/16-hang-cho-tran.png)
+  <figcaption>IMG-16 · Chọn cặp đấu, chuyển sân và bắt đầu ngay · Mobile.</figcaption>
 </figure>
 
 ## Gọi vào sân
@@ -33,8 +33,8 @@ Phiên được lưu bằng cookie trong khoảng 12 giờ. Chọn **Khóa** khi
 4. Chọn **Hủy gọi** nếu cần đổi hoặc hủy cặp đấu.
 
 <figure markdown="span">
-  ![Placeholder bộ đếm gọi vào sân](assets/screenshots/17-goi-vao-san.svg)
-  <figcaption>IMG-17 · Gọi vào sân và đếm ngược warmup · Mobile · Ảnh demo sẽ được bổ sung.</figcaption>
+  ![Bộ đếm gọi vào sân](assets/screenshots/17-goi-vao-san.png)
+  <figcaption>IMG-17 · Trạng thái gọi vào sân và đếm ngược warmup · Mobile.</figcaption>
 </figure>
 
 ## Ghi tỉ số
@@ -44,11 +44,6 @@ Phiên được lưu bằng cookie trong khoảng 12 giờ. Chọn **Khóa** khi
 - Có thể đổi bên A/B trước khi gọi vào sân.
 - Khi đủ số set thắng, nộp kết quả để kết thúc trận.
 
-<figure markdown="span">
-  ![Placeholder ghi tỉ số live](assets/screenshots/18-ghi-ti-so-live.svg)
-  <figcaption>IMG-18 · Ghi tỉ số live cho trận đang đấu · Mobile · Ảnh demo sẽ được bổ sung.</figcaption>
-</figure>
-
 ## Xử lý vắng mặt
 
 1. Chọn **Vắng mặt**.
@@ -56,8 +51,8 @@ Phiên được lưu bằng cookie trong khoảng 12 giờ. Chọn **Khóa** khi
 3. Xác nhận để đội còn lại thắng walkover.
 
 <figure markdown="span">
-  ![Placeholder xử lý vắng mặt](assets/screenshots/19-xu-ly-vang-mat.svg)
-  <figcaption>IMG-19 · Xác nhận đội vắng mặt · Mobile · Ảnh demo sẽ được bổ sung.</figcaption>
+  ![Xử lý vắng mặt](assets/screenshots/19-xu-ly-vang-mat.png)
+  <figcaption>IMG-19 · Chọn đội vắng mặt trước khi xác nhận walkover · Mobile.</figcaption>
 </figure>
 
 ## Giới hạn quyền

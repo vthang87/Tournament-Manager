@@ -22,6 +22,8 @@ function mapEvent(row: typeof tournamentEvents.$inferSelect): TournamentEvent {
     status: row.status as EventStatus,
     defaultMatchRuleId: row.defaultMatchRuleId,
     thirdPlaceMatchEnabled: row.thirdPlaceMatchEnabled,
+    scheduleLockedAt: row.scheduleLockedAt,
+    scheduleRestMinutes: row.scheduleRestMinutes,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -43,6 +45,8 @@ export class DrizzleTournamentEventRepository
       status: (input.status ?? "SETUP") as EventStatus,
       defaultMatchRuleId: input.defaultMatchRuleId ?? null,
       thirdPlaceMatchEnabled: input.thirdPlaceMatchEnabled ?? false,
+      scheduleLockedAt: null,
+      scheduleRestMinutes: 0,
       createdAt: now,
       updatedAt: now,
     };

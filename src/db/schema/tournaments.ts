@@ -1,6 +1,7 @@
 import {
   boolean,
   index,
+  integer,
   pgTable,
   primaryKey,
   text,
@@ -97,6 +98,8 @@ export const tournamentEvents = pgTable("tournament_events", {
   thirdPlaceMatchEnabled: boolean("third_place_match_enabled")
     .notNull()
     .default(false),
+  scheduleLockedAt: text("schedule_locked_at"),
+  scheduleRestMinutes: integer("schedule_rest_minutes").notNull().default(0),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
@@ -113,6 +116,8 @@ export const courts = pgTable(
     active: boolean("active").notNull().default(true),
     /** Argon2 hash of 4–6 digit referee PIN; null = court scoring link disabled. */
     accessPinHash: text("access_pin_hash"),
+    /** AES-GCM ciphertext used only to reveal the PIN to authorized operators. */
+    accessPinEncrypted: text("access_pin_encrypted"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { canPerform, type PolicyAction } from "@/lib/auth/policies";
 import {
+  changeOwnPasswordSchema,
   createManagedUserSchema,
+  updateOwnProfileSchema,
   updateManagedUserSchema,
 } from "@/lib/validation/schemas";
 
@@ -9,6 +11,7 @@ describe("Super Admin user management", () => {
   it("allows Super Admin to perform every platform operation", () => {
     const actions: PolicyAction[] = [
       "setup",
+      "courtPin",
       "import",
       "draw",
       "schedule",
@@ -50,5 +53,29 @@ describe("Super Admin user management", () => {
         active: true,
       }).success,
     ).toBe(true);
+  });
+
+  it("validates profile updates and matching password confirmation", () => {
+    expect(
+      updateOwnProfileSchema.safeParse({
+        displayName: "Updated Display Name",
+      }).success,
+    ).toBe(true);
+
+    expect(
+      changeOwnPasswordSchema.safeParse({
+        currentPassword: "current-pass",
+        newPassword: "new-secure-pass",
+        confirmPassword: "new-secure-pass",
+      }).success,
+    ).toBe(true);
+
+    expect(
+      changeOwnPasswordSchema.safeParse({
+        currentPassword: "current-pass",
+        newPassword: "new-secure-pass",
+        confirmPassword: "different-pass",
+      }).success,
+    ).toBe(false);
   });
 });

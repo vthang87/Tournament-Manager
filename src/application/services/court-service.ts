@@ -12,6 +12,11 @@ import { DrizzleCourtRepository } from "@/db/repositories/court-repository";
 import { DrizzleTournamentRepository } from "@/db/repositories/tournament-repository";
 import { courts } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit";
+import {
+  decryptCourtPin,
+  encryptCourtPin,
+} from "@/lib/auth/court-pin-crypto";
+import { createCourtLinkToken } from "@/lib/auth/court-link-token";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { createId, nowIso } from "@/lib/id";
 import {
@@ -36,6 +41,26 @@ export class CourtService {
 
   listByTournament(tournamentId: string) {
     return this.courts.listByTournamentId(tournamentId);
+  }
+
+  async listByTournamentWithPins(
+    actor: ActorContext,
+    tournamentId: string,
+  ): Promise<
+    (Court & { accessPin: string | null; accessToken: string | null })[]
+  > {
+    await this.access.assert(actor, tournamentId, "courtPin");
+    const rows =
+      await this.courts.listByTournamentIdWithEncryptedPins(tournamentId);
+    return rows.map(
+      ({ accessPinHash, accessPinEncrypted, ...court }) => ({
+        ...court,
+        accessPin: decryptCourtPin(accessPinEncrypted),
+        accessToken: accessPinHash
+          ? createCourtLinkToken(court.id, accessPinHash)
+          : null,
+      }),
+    );
   }
 
   async getById(id: string) {
@@ -79,6 +104,7 @@ export class CourtService {
         code: input.code,
         active: input.active ?? true,
         accessPinHash: null as string | null,
+        accessPinEncrypted: null as string | null,
         createdAt: now,
         updatedAt: now,
       };
@@ -154,7 +180,7 @@ export class CourtService {
     courtId: string,
     pin: string,
   ): Promise<Court> {
-    await this.access.assertForCourt(actor, courtId, "setup");
+    await this.access.assertForCourt(actor, courtId, "courtPin");
     if (!PIN_RE.test(pin)) {
       throw new ValidationError(
         "Court PIN must be 4–6 digits",
@@ -169,7 +195,12 @@ export class CourtService {
     assertTournamentNotArchived(tournament.status);
 
     const accessPinHash = await hashPassword(pin);
-    const updated = await this.courts.setAccessPinHash(courtId, accessPinHash);
+    const accessPinEncrypted = encryptCourtPin(pin);
+    const updated = await this.courts.setAccessPin(
+      courtId,
+      accessPinHash,
+      accessPinEncrypted,
+    );
     if (!updated) {
       throw new NotFoundError(`Court ${courtId} not found`);
     }
@@ -186,14 +217,14 @@ export class CourtService {
   }
 
   async clearAccessPin(actor: ActorContext, courtId: string): Promise<Court> {
-    await this.access.assertForCourt(actor, courtId, "setup");
+    await this.access.assertForCourt(actor, courtId, "courtPin");
     const existing = await this.getById(courtId);
     const tournament = await this.tournaments.findById(existing.tournamentId);
     if (tournament) {
       assertTournamentNotArchived(tournament.status);
     }
 
-    const updated = await this.courts.setAccessPinHash(courtId, null);
+    const updated = await this.courts.setAccessPin(courtId, null, null);
     if (!updated) {
       throw new NotFoundError(`Court ${courtId} not found`);
     }

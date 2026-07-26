@@ -152,6 +152,116 @@ function softConflictScore(
   return score;
 }
 
+function bucketSoftConflictScore(
+  bucket: MutableGroup,
+  configuration: GenerateDrawInput["configuration"],
+): number {
+  let score = 0;
+  for (let left = 0; left < bucket.entries.length; left += 1) {
+    for (let right = left + 1; right < bucket.entries.length; right += 1) {
+      const a = bucket.entries[left]!;
+      const b = bucket.entries[right]!;
+      if (
+        configuration.avoidSameClub &&
+        clubKey(a) != null &&
+        clubKey(a) === clubKey(b)
+      ) {
+        score += 1;
+      }
+      if (
+        configuration.avoidSameTeam &&
+        teamKey(a) != null &&
+        teamKey(a) === teamKey(b)
+      ) {
+        score += 1;
+      }
+      if (
+        configuration.avoidSameRegion &&
+        regionKey(a) != null &&
+        regionKey(a) === regionKey(b)
+      ) {
+        score += 1;
+      }
+    }
+  }
+  return score;
+}
+
+/**
+ * Greedy placement can consume the last conflict-free slot before a later
+ * entry arrives. Repair that local dead end with deterministic pair swaps.
+ * Seeded entries stay in their assigned groups and capacity never changes.
+ */
+function optimizeSoftConflicts(
+  buckets: MutableGroup[],
+  configuration: GenerateDrawInput["configuration"],
+): void {
+  while (true) {
+    let best:
+      | {
+          leftBucket: number;
+          leftEntry: number;
+          rightBucket: number;
+          rightEntry: number;
+          improvement: number;
+        }
+      | undefined;
+
+    for (let leftBucket = 0; leftBucket < buckets.length; leftBucket += 1) {
+      const left = buckets[leftBucket]!;
+      for (
+        let rightBucket = leftBucket + 1;
+        rightBucket < buckets.length;
+        rightBucket += 1
+      ) {
+        const right = buckets[rightBucket]!;
+        const before =
+          bucketSoftConflictScore(left, configuration) +
+          bucketSoftConflictScore(right, configuration);
+
+        for (let leftEntry = 0; leftEntry < left.entries.length; leftEntry += 1) {
+          if (left.entries[leftEntry]!.seed != null) continue;
+          for (
+            let rightEntry = 0;
+            rightEntry < right.entries.length;
+            rightEntry += 1
+          ) {
+            if (right.entries[rightEntry]!.seed != null) continue;
+
+            const leftValue = left.entries[leftEntry]!;
+            const rightValue = right.entries[rightEntry]!;
+            left.entries[leftEntry] = rightValue;
+            right.entries[rightEntry] = leftValue;
+            const after =
+              bucketSoftConflictScore(left, configuration) +
+              bucketSoftConflictScore(right, configuration);
+            left.entries[leftEntry] = leftValue;
+            right.entries[rightEntry] = rightValue;
+
+            const improvement = before - after;
+            if (improvement > (best?.improvement ?? 0)) {
+              best = {
+                leftBucket,
+                leftEntry,
+                rightBucket,
+                rightEntry,
+                improvement,
+              };
+            }
+          }
+        }
+      }
+    }
+
+    if (!best) return;
+    const left = buckets[best.leftBucket]!;
+    const right = buckets[best.rightBucket]!;
+    const leftValue = left.entries[best.leftEntry]!;
+    left.entries[best.leftEntry] = right.entries[best.rightEntry]!;
+    right.entries[best.rightEntry] = leftValue;
+  }
+}
+
 /**
  * Chooses the best eligible group for an unseeded entry.
  * Priority: capacity → minimize soft conflicts → fewest members (balance) →
@@ -344,6 +454,8 @@ export function generateDraw(
     const bucket = chooseGroupForEntry(buckets, entry, configuration);
     bucket.entries.push(entry);
   }
+
+  optimizeSoftConflicts(buckets, configuration);
 
   const allocations = buildAllocations(buckets);
   const byGroup = buckets.map((bucket) => ({

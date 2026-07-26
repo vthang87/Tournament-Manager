@@ -1,0 +1,1 @@
+ALTER TABLE "tournament_events" ADD COLUMN "schedule_locked_at" text;

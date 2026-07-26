@@ -21,9 +21,6 @@ export default async function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-100 via-slate-50 to-emerald-50 px-4">
-      <div className="absolute right-4 top-4">
-        <LocaleSwitcher />
-      </div>
       <Card className="w-full max-w-md shadow-md">
         <CardHeader>
           <CardTitle>{tMeta("appName")}</CardTitle>
@@ -32,6 +29,9 @@ export default async function LoginPage() {
         <CardContent>
           <LoginForm />
         </CardContent>
+        <div className="flex justify-center border-t border-slate-100 px-6 py-3">
+          <LocaleSwitcher />
+        </div>
       </Card>
     </div>
   );

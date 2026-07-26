@@ -94,6 +94,8 @@ export class EventService {
         status: "SETUP" as const,
         defaultMatchRuleId: null as string | null,
         thirdPlaceMatchEnabled: input.thirdPlaceMatchEnabled ?? false,
+        scheduleLockedAt: null as string | null,
+        scheduleRestMinutes: 0,
         createdAt: now,
         updatedAt: now,
       };

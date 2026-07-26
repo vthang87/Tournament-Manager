@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -112,12 +113,11 @@ export default async function EntriesPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link
-            href={`/admin/tournaments/${tournamentId}/events/${eventId}`}
-            className="text-sm text-slate-600 hover:text-slate-900"
-          >
-            ← {event.name}
-          </Link>
+          <AdminBreadcrumbs
+            tournament={{ id: tournamentId }}
+            event={{ id: eventId, name: event.name }}
+            current={isDoubles ? t("pairsTitle") : t("title")}
+          />
           <h2 className="mt-2 text-2xl font-semibold tracking-tight">
             {isDoubles ? t("pairsTitle") : t("title")}
           </h2>

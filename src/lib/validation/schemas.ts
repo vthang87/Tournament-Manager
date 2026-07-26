@@ -69,6 +69,21 @@ export const resetManagedUserPasswordSchema = z.object({
   password: z.string().min(8).max(200),
 });
 
+export const updateOwnProfileSchema = z.object({
+  displayName: z.string().trim().min(1).max(120),
+});
+
+export const changeOwnPasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1).max(200),
+    newPassword: z.string().min(8).max(200),
+    confirmPassword: z.string().min(8).max(200),
+  })
+  .refine((input) => input.newPassword === input.confirmPassword, {
+    message: "Password confirmation does not match",
+    path: ["confirmPassword"],
+  });
+
 const optionalTrimmed = z
   .string()
   .trim()
@@ -391,14 +406,17 @@ export const scheduleAssignmentInputSchema = z.object({
 export const saveAssignmentsSchema = z.object({
   eventId: z.string().min(1),
   assignments: z.array(scheduleAssignmentInputSchema).min(1),
+  restMinutes: z.number().int().min(0).optional(),
 });
 
 export const bulkAssignSchema = z.object({
   eventId: z.string().min(1),
+  stageId: z.string().min(1),
   matchIds: z.array(z.string().min(1)).min(1),
   courtIds: z.array(z.string().min(1)).min(1),
   startTime: z.string().min(1),
-  gapMinutes: z.number().int().min(0).optional(),
+  matchDurationMinutes: z.number().int().positive(),
+  restMinutes: z.number().int().min(0),
 });
 
 export function parseOrThrow<T>(

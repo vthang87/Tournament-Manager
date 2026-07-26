@@ -1,5 +1,6 @@
 import { and, asc, count, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { NotFoundError } from "@/application/errors";
+import type { ActorContext } from "@/core/domain";
 import type { AppDatabase } from "@/db/client";
 import {
   DrizzleCourtRepository,
@@ -317,8 +318,13 @@ export class DashboardService {
     };
   }
 
-  async summarizeAll(): Promise<TournamentDashboardSummary[]> {
-    const list = await this.tournaments.list();
+  async summarizeAll(
+    actor: ActorContext,
+  ): Promise<TournamentDashboardSummary[]> {
+    if (!actor.userId) {
+      return [];
+    }
+    const list = await this.tournaments.listAccessibleByUser(actor.userId);
     return Promise.all(list.map((t) => this.summarizeTournament(t.id)));
   }
 

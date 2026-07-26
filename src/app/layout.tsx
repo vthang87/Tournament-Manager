@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
+import { Suspense } from "react";
+import { RouteProgress } from "@/components/shared/route-progress";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -40,6 +42,9 @@ export default async function RootLayout({
     >
       <body className="min-h-full bg-slate-50 font-sans text-slate-900">
         <NextIntlClientProvider locale={locale} messages={messages}>
+          <Suspense fallback={null}>
+            <RouteProgress />
+          </Suspense>
           {children}
         </NextIntlClientProvider>
       </body>

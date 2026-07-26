@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import {
   EntryService,
   EventService,
@@ -149,12 +150,11 @@ export default async function EventGroupsPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link
-            href={basePath}
-            className="text-sm text-slate-600 hover:text-slate-900"
-          >
-            ← {event.name}
-          </Link>
+          <AdminBreadcrumbs
+            tournament={{ id: tournamentId }}
+            event={{ id: eventId, name: event.name }}
+            current={t("title")}
+          />
           <h2 className="mt-2 text-2xl font-semibold tracking-tight">
             {t("title")}
           </h2>
@@ -193,7 +193,7 @@ export default async function EventGroupsPage({
 
             return (
               <Card key={block.group.id}>
-                <CardHeader>
+                <CardHeader className="flex-row flex-wrap items-baseline gap-x-3 gap-y-1">
                   <CardTitle className="text-lg">
                     {block.group.name}
                     <span className="ml-2 text-sm font-normal text-slate-500">

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import {
   Table,
   TableBody,
@@ -66,12 +67,16 @@ export default async function CourtLivePage({
     <div className="space-y-6">
       <LiveRefresh intervalMs={12_000} />
       <div>
-        <Link
-          href={`/admin/tournaments/${tournamentId}/courts`}
-          className="text-sm text-slate-600 hover:text-slate-900"
-        >
-          ← {t("title")}
-        </Link>
+        <AdminBreadcrumbs
+          tournament={{ id: tournamentId }}
+          items={[
+            {
+              href: `/admin/tournaments/${tournamentId}/courts`,
+              label: t("title"),
+            },
+          ]}
+          current={t("courtDashboard")}
+        />
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">
           {t("courtDashboard")}
         </h1>

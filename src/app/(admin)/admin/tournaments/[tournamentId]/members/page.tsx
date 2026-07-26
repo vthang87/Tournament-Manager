@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/shared/action-form";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,12 +44,10 @@ export default async function TournamentMembersPage({
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <Link
-          href={`/admin/tournaments/${tournamentId}`}
-          className="text-sm text-slate-600 hover:text-slate-900"
-        >
-          ← {tournament.name}
-        </Link>
+        <AdminBreadcrumbs
+          tournament={{ id: tournamentId, name: tournament.name }}
+          current="Cộng tác viên"
+        />
         <h2 className="mt-2 text-2xl font-semibold">Cộng tác viên</h2>
         <p className="mt-1 text-sm text-slate-600">
           Chia sẻ riêng giải này với một tài khoản đã tồn tại.

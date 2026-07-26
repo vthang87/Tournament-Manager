@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import {
   Card,
   CardContent,
@@ -90,12 +91,10 @@ export default async function TournamentDetailPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link
-            href="/admin/tournaments"
-            className="text-sm text-slate-600 hover:text-slate-900"
-          >
-            ← {t("title")}
-          </Link>
+          <AdminBreadcrumbs
+            tournament={{ id: tournamentId, name: tournament.name }}
+            current={tournament.name}
+          />
           <h2 className="mt-2 text-2xl font-semibold tracking-tight">
             {tournament.name}
           </h2>

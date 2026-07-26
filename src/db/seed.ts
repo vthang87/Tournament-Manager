@@ -14,6 +14,7 @@ import {
   sports,
 } from "./schema";
 import { SPORT_IDS } from "@/core/domain";
+import { encryptCourtPin } from "@/lib/auth/court-pin-crypto";
 import { hashPassword } from "@/lib/auth/password";
 import { nowIso } from "@/lib/id";
 import { seedDemoTournament } from "./seed-demo-data";
@@ -325,6 +326,7 @@ async function upsertCourts(db: AppDatabase): Promise<void> {
   const now = nowIso();
   /** Demo referee PIN for court kiosk scoring (`/r/{slug}/c/{code}`). */
   const demoPinHash = await hashPassword("1234");
+  const demoPinEncrypted = encryptCourtPin("1234");
   const courtDefs = [
     { id: SEED_IDS.courts[0], name: "Court 1", code: "C1" },
     { id: SEED_IDS.courts[1], name: "Court 2", code: "C2" },
@@ -346,6 +348,7 @@ async function upsertCourts(db: AppDatabase): Promise<void> {
       code: court.code,
       active: true,
       accessPinHash: demoPinHash,
+      accessPinEncrypted: demoPinEncrypted,
       updatedAt: now,
     };
 

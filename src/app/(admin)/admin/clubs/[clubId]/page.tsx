@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { ActionForm } from "@/components/shared/action-form";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ClubService } from "@/application/services";
@@ -44,7 +44,6 @@ export default async function ClubDetailPage({
 }) {
   const user = await requireAuthOrRedirect();
   const { clubId } = await params;
-  const t = await getTranslations("clubs");
   const tc = await getTranslations("common");
 
   let club;
@@ -60,12 +59,7 @@ export default async function ClubDetailPage({
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <div>
-        <Link
-          href="/admin/clubs"
-          className="text-sm text-slate-600 hover:text-slate-900"
-        >
-          ← {t("title")}
-        </Link>
+        <AdminBreadcrumbs section="clubs" current={club.name} />
         <h2 className="mt-2 text-2xl font-semibold tracking-tight">
           {club.name}
         </h2>

@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import {
   ClubService,
   DrawService,
@@ -109,12 +109,17 @@ export default async function DrawHistoryPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href={`/admin/tournaments/${tournamentId}/events/${eventId}/draw`}
-          className="text-sm text-slate-600 hover:text-slate-900"
-        >
-          ← {t("title")}
-        </Link>
+        <AdminBreadcrumbs
+          tournament={{ id: tournamentId, name: tournament.name }}
+          event={{ id: eventId, name: event.name }}
+          items={[
+            {
+              href: `/admin/tournaments/${tournamentId}/events/${eventId}/draw`,
+              label: t("title"),
+            },
+          ]}
+          current={t("historyTitle")}
+        />
         <h2 className="mt-2 text-2xl font-semibold tracking-tight">
           {t("historyTitle")}
         </h2>

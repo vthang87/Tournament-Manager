@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { UserManagementService } from "@/application/services";
 import { ActionForm } from "@/components/shared/action-form";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -50,12 +50,7 @@ export default async function EditUserPage({
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <div>
-        <Link
-          href="/admin/users"
-          className="text-sm text-slate-600 hover:text-slate-900"
-        >
-          ← {t("title")}
-        </Link>
+        <AdminBreadcrumbs section="users" current={t("edit")} />
         <h2 className="mt-2 text-2xl font-semibold tracking-tight">
           {t("edit")}
         </h2>

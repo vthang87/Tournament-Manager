@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import { TournamentService } from "@/application/services";
 import { getDb } from "@/db/client";
 import { OrgChartPanel } from "@/features/org-chart/org-chart-panel";
@@ -81,12 +81,10 @@ export default async function TournamentOrgChartPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href={`/admin/tournaments/${tournamentId}`}
-          className="text-sm text-slate-600 hover:text-slate-900"
-        >
-          ← {tournament.name}
-        </Link>
+        <AdminBreadcrumbs
+          tournament={{ id: tournamentId, name: tournament.name }}
+          current={t("title")}
+        />
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">
           {t("title")}
         </h1>

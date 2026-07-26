@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { ActionForm } from "@/components/shared/action-form";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,12 +23,7 @@ export default async function NewTournamentPage() {
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <div>
-        <Link
-          href="/admin/tournaments"
-          className="text-sm text-slate-600 hover:text-slate-900"
-        >
-          ← {t("title")}
-        </Link>
+        <AdminBreadcrumbs section="tournaments" current={t("new")} />
         <h2 className="mt-2 text-2xl font-semibold tracking-tight">{t("new")}</h2>
         <p className="mt-1 text-sm text-slate-600">{t("step1Hint")}</p>
       </div>

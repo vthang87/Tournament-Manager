@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import { ActionForm } from "@/components/shared/action-form";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -120,12 +121,11 @@ export default async function EventDetailPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link
-            href={`/admin/tournaments/${tournamentId}`}
-            className="text-sm text-slate-600 hover:text-slate-900"
-          >
-            ← {tournament.name}
-          </Link>
+          <AdminBreadcrumbs
+            tournament={{ id: tournamentId, name: tournament.name }}
+            event={{ id: eventId, name: event.name }}
+            current={event.name}
+          />
           <h2 className="mt-2 text-2xl font-semibold tracking-tight">
             {event.name}
           </h2>
@@ -311,12 +311,18 @@ export default async function EventDetailPage({
             <CardTitle className="text-base">{t("scheduleCard")}</CardTitle>
             <CardDescription>{t("scheduleDesc")}</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-wrap gap-4">
             <Link
               href={`/admin/tournaments/${tournamentId}/events/${eventId}/schedule`}
               className="text-sm font-medium underline"
             >
               {t("openTimeline")}
+            </Link>
+            <Link
+              href={`/admin/tournaments/${tournamentId}/events/${eventId}/schedule/print`}
+              className="text-sm font-medium underline"
+            >
+              {t("printSchedule")}
             </Link>
           </CardContent>
         </Card>

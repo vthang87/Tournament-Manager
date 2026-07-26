@@ -18,11 +18,11 @@ import {
 import { DashboardService } from "@/application/services";
 import { getDb } from "@/db/client";
 import {
-  eventStatusKey,
   matchStatusKey,
   stageStatusKey,
   tournamentStatusKey,
 } from "@/i18n/status-labels";
+import { requireAuthOrRedirect } from "@/lib/auth/require-auth";
 import { pageTitle } from "@/lib/page-title";
 
 export async function generateMetadata() {
@@ -37,7 +37,11 @@ export default async function AdminDashboardPage() {
   const tt = await getTranslations("tournaments");
   const tc = await getTranslations("common");
   const tStatus = await getTranslations("status");
-  const summaries = await new DashboardService(getDb()).summarizeAll();
+  const user = await requireAuthOrRedirect();
+  const summaries = await new DashboardService(getDb()).summarizeAll({
+    userId: user.id,
+    role: user.role,
+  });
 
   return (
     <div className="space-y-6">
@@ -49,11 +53,8 @@ export default async function AdminDashboardPage() {
       {summaries.length === 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle>{t("noTournamentsYet")}</CardTitle>
-            <CardDescription>
-              Run <code className="rounded bg-slate-100 px-1">pnpm db:seed</code>{" "}
-              {t("runSeedHint")}
-            </CardDescription>
+            <CardTitle>{t("noAccessibleTournaments")}</CardTitle>
+            <CardDescription>{t("requestAccessHint")}</CardDescription>
           </CardHeader>
         </Card>
       ) : (

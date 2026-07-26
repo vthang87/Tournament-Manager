@@ -18,12 +18,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Select } from "@/components/ui/select";
 import {
   bulkAssignMatchesAction,
+  lockScheduleAction,
   saveScheduleAssignmentsAction,
   validateScheduleAssignmentsAction,
 } from "@/features/scheduling/actions";
@@ -36,6 +36,7 @@ import {
 
 export type ScheduleMatchDto = {
   id: string;
+  stageId: string;
   label: string;
   /** Club labels for both sides, when available. */
   clubLabel: string | null;
@@ -44,6 +45,7 @@ export type ScheduleMatchDto = {
   scheduledAt: string | null;
   estimatedDurationMinutes: number | null;
   stageName: string;
+  schedulable: boolean;
 };
 
 export type ScheduleCourtDto = {
@@ -51,6 +53,13 @@ export type ScheduleCourtDto = {
   name: string;
   code: string;
   active: boolean;
+};
+
+export type ScheduleStageDto = {
+  id: string;
+  name: string;
+  orderIndex: number;
+  status: string;
 };
 
 type ConflictDto = {
@@ -91,18 +100,26 @@ function MatchChip({
 function DraggableMatch({
   match,
   id,
+  disabled = false,
 }: {
   match: ScheduleMatchDto;
   id: string;
+  disabled?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({ id, data: { matchId: match.id } });
+    useDraggable({ id, disabled, data: { matchId: match.id } });
   const style = {
     transform: CSS.Translate.toString(transform),
     opacity: isDragging ? 0.4 : 1,
   };
   return (
-    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={disabled ? "cursor-default" : "cursor-grab"}
+      {...listeners}
+      {...attributes}
+    >
       <MatchChip match={match} />
     </div>
   );
@@ -148,20 +165,26 @@ export function ScheduleBoard({
   eventId,
   timeZone,
   courts,
+  stages,
   matches,
   timeSlots,
   defaultDurationMinutes,
+  defaultRestMinutes,
   canSchedule,
+  scheduleLocked,
   matchDetailBase,
 }: {
   tournamentId: string;
   eventId: string;
   timeZone: string;
   courts: ScheduleCourtDto[];
+  stages: ScheduleStageDto[];
   matches: ScheduleMatchDto[];
   timeSlots: string[];
   defaultDurationMinutes: number;
+  defaultRestMinutes: number;
   canSchedule: boolean;
+  scheduleLocked: boolean;
   matchDetailBase: string;
 }) {
   const router = useRouter();
@@ -193,12 +216,46 @@ export function ScheduleBoard({
   const [conflicts, setConflicts] = useState<ConflictDto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [stagedMatchIds, setStagedMatchIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [stagedRestMinutes, setStagedRestMinutes] =
+    useState(defaultRestMinutes);
   const [manualMatchId, setManualMatchId] = useState("");
   const defaultLocalStart = timeSlots[0]
     ? utcIsoToZonedLocal(timeSlots[0], timeZone)
     : "";
+  const orderedStages = [...stages].sort(
+    (left, right) => left.orderIndex - right.orderIndex,
+  );
+  const defaultBulkStageId =
+    orderedStages.find((stage) =>
+      matches.some(
+        (match) => match.stageId === stage.id && match.schedulable,
+      ),
+    )?.id ??
+    orderedStages[0]?.id ??
+    "";
+  const suggestedBulkStart = (stageId: string) => {
+    const scheduled = matches
+      .filter(
+        (match) =>
+          match.stageId === stageId &&
+          match.schedulable &&
+          match.scheduledAt,
+      )
+      .map((match) => match.scheduledAt!)
+      .sort((left, right) => Date.parse(left) - Date.parse(right));
+    return scheduled[0]
+      ? utcIsoToZonedLocal(scheduled[0], timeZone)
+      : defaultLocalStart;
+  };
   const [manualStart, setManualStart] = useState(defaultLocalStart);
-  const [bulkStart, setBulkStart] = useState(defaultLocalStart);
+  const [bulkStageId, setBulkStageId] = useState(defaultBulkStageId);
+  const [bulkStart, setBulkStart] = useState(
+    suggestedBulkStart(defaultBulkStageId),
+  );
   const [pending, startTransition] = useTransition();
   // Capture once after mount so upcoming filter stays stable during render.
   const [referenceNowMs] = useState(() => Date.now());
@@ -210,7 +267,7 @@ export function ScheduleBoard({
 
   const matchSelectOptions = useMemo(
     () =>
-      matches.map((m) => ({
+      matches.filter((m) => m.schedulable).map((m) => ({
         value: m.id,
         label: m.label,
         description: m.clubLabel ?? undefined,
@@ -219,25 +276,21 @@ export function ScheduleBoard({
     [matches],
   );
 
-  const unscheduled = matches.filter((m) => !assignments.has(m.id));
+  const unscheduled = matches.filter(
+    (m) => m.schedulable && !assignments.has(m.id),
+  );
+  const eligibleBulkMatches = matches.filter(
+    (match) => match.stageId === bulkStageId && match.schedulable,
+  );
+  const canEditSchedule = canSchedule && !scheduleLocked;
 
   const cellOccupants = useMemo(() => {
     const map = new Map<string, string>();
     for (const a of assignments.values()) {
-      // Snap to nearest slot for display
-      const slot =
-        timeSlots.find((s) => s === a.startTime) ??
-        timeSlots.find(
-          (s) =>
-            Date.parse(s) <= Date.parse(a.startTime) &&
-            Date.parse(a.startTime) <
-              Date.parse(s) + defaultDurationMinutes * 60_000,
-        ) ??
-        a.startTime;
-      map.set(`${a.courtId}::${slot}`, a.matchId);
+      map.set(`${a.courtId}::${a.startTime}`, a.matchId);
     }
     return map;
-  }, [assignments, timeSlots, defaultDurationMinutes]);
+  }, [assignments]);
 
   const upcoming = useMemo(() => {
     return [...assignments.values()]
@@ -253,7 +306,19 @@ export function ScheduleBoard({
       (() => {
         const fd = new FormData();
         fd.set("eventId", eventId);
-        fd.set("assignmentsJson", JSON.stringify(list));
+        fd.set(
+          "assignmentsJson",
+          JSON.stringify(
+            list.map((assignment) => ({
+              ...assignment,
+              endTime: addMinutesUtc(
+                assignment.startTime,
+                assignment.estimatedDurationMinutes ??
+                  defaultDurationMinutes,
+              ),
+            })),
+          ),
+        );
         return fd;
       })(),
     );
@@ -265,10 +330,14 @@ export function ScheduleBoard({
   const onDragEnd = (event: DragEndEvent) => {
     setActiveId(null);
     const { active, over } = event;
-    if (!over || !canSchedule) return;
+    if (!over || !canEditSchedule) return;
     const matchId =
       (active.data.current?.matchId as string | undefined) ??
       String(active.id).replace(/^match:/, "");
+    if (!matchById.get(matchId)?.schedulable) {
+      setError(t("matchNotSchedulable"));
+      return;
+    }
     const overId = String(over.id);
     if (!overId.includes("::")) return;
     const { courtId, startTime } = parseCellId(overId);
@@ -289,6 +358,8 @@ export function ScheduleBoard({
       });
       return next;
     });
+    setDirty(true);
+    setStagedMatchIds((current) => new Set(current).add(matchId));
     setError(null);
   };
 
@@ -312,7 +383,12 @@ export function ScheduleBoard({
                 <p className="text-xs text-slate-500">{t("allScheduled")}</p>
               ) : (
                 unscheduled.map((m) => (
-                  <DraggableMatch key={m.id} id={`match:${m.id}`} match={m} />
+                  <DraggableMatch
+                    key={m.id}
+                    id={`match:${m.id}`}
+                    match={m}
+                    disabled={!canEditSchedule || !m.schedulable}
+                  />
                 ))
               )}
             </div>
@@ -328,7 +404,7 @@ export function ScheduleBoard({
                   {timeSlots.map((slot) => (
                     <th
                       key={slot}
-                      className="min-w-[88px] border-b border-slate-200 px-1 py-2 text-center font-medium text-slate-600"
+                      className="min-w-[176px] border-b border-slate-200 px-1 py-2 text-center font-medium text-slate-600"
                     >
                       {formatTournamentTime(slot, timeZone)}
                     </th>
@@ -358,11 +434,17 @@ export function ScheduleBoard({
                         : null;
                       return (
                         <td key={cellId} className="border-b border-slate-100 p-0">
-                          <DropCell id={cellId} disabled={!court.active}>
+                          <DropCell
+                            id={cellId}
+                            disabled={!court.active || !canEditSchedule}
+                          >
                             {occupant ? (
                               <DraggableMatch
                                 id={`match:${occupant.id}`}
                                 match={occupant}
+                                disabled={
+                                  !canEditSchedule || !occupant.schedulable
+                                }
                               />
                             ) : null}
                           </DropCell>
@@ -380,7 +462,13 @@ export function ScheduleBoard({
         </DragOverlay>
       </DndContext>
 
-      {canSchedule ? (
+      {scheduleLocked ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+          {t("scheduleLocked")}
+        </div>
+      ) : null}
+
+      {canEditSchedule ? (
         <div className="grid gap-4 md:grid-cols-2">
           <form
             className="space-y-3 rounded-lg border border-slate-200 bg-white p-4"
@@ -393,6 +481,9 @@ export function ScheduleBoard({
               const duration =
                 Number(fd.get("duration") ?? defaultDurationMinutes) ||
                 defaultDurationMinutes;
+              const restMinutes = Number(
+                fd.get("manualRestMinutes") ?? defaultRestMinutes,
+              );
               const court = courts.find((c) => c.id === courtId);
               if (!court?.active) {
                 setError(t("inactiveHint"));
@@ -409,6 +500,9 @@ export function ScheduleBoard({
                 });
                 return next;
               });
+              setDirty(true);
+              setStagedMatchIds((current) => new Set(current).add(matchId));
+              setStagedRestMinutes(restMinutes);
               setMessage(t("assignmentStaged"));
               setError(null);
               setManualMatchId("");
@@ -457,14 +551,30 @@ export function ScheduleBoard({
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="duration">{t("durationMin")}</Label>
-              <Input
+              <Label htmlFor="duration">{t("matchDurationMin")}</Label>
+              <Select
                 id="duration"
                 name="duration"
-                type="number"
-                min={5}
                 defaultValue={defaultDurationMinutes}
-              />
+              >
+                <option value={30}>30</option>
+                <option value={45}>45</option>
+                <option value={60}>60</option>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="manualRestMinutes">{t("restMin")}</Label>
+              <Select
+                id="manualRestMinutes"
+                name="manualRestMinutes"
+                defaultValue={defaultRestMinutes}
+              >
+                <option value={0}>0</option>
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={15}>15</option>
+                <option value={30}>30</option>
+              </Select>
             </div>
             <Button type="submit" size="sm" variant="secondary">
               {t("stageAssignment")}
@@ -477,16 +587,20 @@ export function ScheduleBoard({
               e.preventDefault();
               const fd = new FormData(e.currentTarget);
               const local = String(fd.get("bulkStart") ?? "");
-              const gap = Number(fd.get("gapMinutes") ?? 30);
+              const matchDurationMinutes = Number(
+                fd.get("matchDurationMinutes") ?? 30,
+              );
+              const restMinutes = Number(fd.get("restMinutes") ?? 0);
               const startTime = zonedLocalToUtcIso(local, timeZone);
               const activeCourts = courts.filter((c) => c.active);
-              const ids = unscheduled.map((m) => m.id);
-              if (ids.length === 0) {
-                setError(t("noUnscheduledBulk"));
-                return;
-              }
+              const stageId = String(fd.get("stageId") ?? "");
+              const ids = eligibleBulkMatches.map((match) => match.id);
               if (activeCourts.length === 0) {
                 setError(t("noActiveCourts"));
+                return;
+              }
+              if (!stageId || ids.length === 0) {
+                setError(t("noEligibleStageMatches"));
                 return;
               }
               setError(null);
@@ -494,13 +608,18 @@ export function ScheduleBoard({
               startTransition(async () => {
                 const payload = new FormData();
                 payload.set("eventId", eventId);
+                payload.set("stageId", stageId);
                 payload.set("matchIdsJson", JSON.stringify(ids));
                 payload.set(
                   "courtIdsJson",
                   JSON.stringify(activeCourts.map((c) => c.id)),
                 );
                 payload.set("startTime", startTime);
-                payload.set("gapMinutes", String(gap));
+                payload.set(
+                  "matchDurationMinutes",
+                  String(matchDurationMinutes),
+                );
+                payload.set("restMinutes", String(restMinutes));
                 const result = await bulkAssignMatchesAction(
                   tournamentId,
                   eventId,
@@ -515,12 +634,45 @@ export function ScheduleBoard({
                   conflicts?: ConflictDto[];
                 };
                 setConflicts(data.conflicts ?? []);
+                setDirty(false);
+                setStagedMatchIds(new Set());
                 router.refresh();
               });
             }}
           >
             <h3 className="text-sm font-semibold">{t("bulkAssign")}</h3>
             <p className="text-[11px] text-slate-500">{t("bulkAssignHint")}</p>
+            <div className="space-y-1">
+              <Label htmlFor="stageId">{t("scheduleStage")}</Label>
+              <Select
+                id="stageId"
+                name="stageId"
+                value={bulkStageId}
+                onChange={(event) => {
+                  const stageId = event.target.value;
+                  setBulkStageId(stageId);
+                  setBulkStart(suggestedBulkStart(stageId));
+                }}
+                required
+              >
+                {orderedStages.map((stage) => {
+                  const count = matches.filter(
+                    (match) =>
+                      match.stageId === stage.id && match.schedulable,
+                  ).length;
+                  return (
+                    <option key={stage.id} value={stage.id} disabled={count === 0}>
+                      {stage.name} ({count})
+                    </option>
+                  );
+                })}
+              </Select>
+              <p className="text-[11px] text-slate-500">
+                {t("eligibleStageMatches", {
+                  count: eligibleBulkMatches.length,
+                })}
+              </p>
+            </div>
             <div className="space-y-1">
               <Label htmlFor="bulkStart">
                 {t("startLabel", { timezone: timeZone })}
@@ -535,24 +687,45 @@ export function ScheduleBoard({
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="gapMinutes">{t("gapMin")}</Label>
-              <Input
-                id="gapMinutes"
-                name="gapMinutes"
-                type="number"
-                min={0}
-                step={15}
+              <Label htmlFor="matchDurationMinutes">
+                {t("matchDurationMin")}
+              </Label>
+              <Select
+                id="matchDurationMinutes"
+                name="matchDurationMinutes"
                 defaultValue={30}
-              />
+              >
+                <option value={30}>30</option>
+                <option value={45}>45</option>
+                <option value={60}>60</option>
+              </Select>
             </div>
-            <Button type="submit" size="sm" disabled={pending}>
-              {t("bulkAssignUnscheduled")}
+            <div className="space-y-1">
+              <Label htmlFor="restMinutes">{t("restMin")}</Label>
+              <Select
+                id="restMinutes"
+                name="restMinutes"
+                defaultValue={defaultRestMinutes}
+              >
+                <option value={0}>0</option>
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={15}>15</option>
+                <option value={30}>30</option>
+              </Select>
+            </div>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={pending || eligibleBulkMatches.length === 0}
+            >
+              {t("bulkAssignStage")}
             </Button>
           </form>
         </div>
       ) : null}
 
-      {canSchedule ? (
+      {canEditSchedule ? (
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
@@ -585,12 +758,14 @@ export function ScheduleBoard({
           <Button
             type="button"
             size="sm"
-            disabled={pending || assignments.size === 0}
+            disabled={pending || stagedMatchIds.size === 0}
             onClick={() => {
               setError(null);
               setMessage(null);
               startTransition(async () => {
-                const list = assignmentsArray();
+                const list = assignmentsArray().filter((assignment) =>
+                  stagedMatchIds.has(assignment.matchId),
+                );
                 const check = await runValidate(list);
                 if (!check.ok) {
                   setError(check.error);
@@ -605,6 +780,7 @@ export function ScheduleBoard({
                 }
                 const fd = new FormData();
                 fd.set("eventId", eventId);
+                fd.set("restMinutes", String(stagedRestMinutes));
                 fd.set(
                   "assignmentsJson",
                   JSON.stringify(
@@ -628,12 +804,42 @@ export function ScheduleBoard({
                 }
                 const data = result.data as { conflicts?: ConflictDto[] };
                 setConflicts(data.conflicts ?? []);
+                setDirty(false);
+                setStagedMatchIds(new Set());
                 setMessage(t("scheduleSaved"));
                 router.refresh();
               });
             }}
           >
             {t("saveSchedule")}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={
+              pending || dirty || assignments.size !== matches.length
+            }
+            title={dirty ? t("saveBeforeLock") : undefined}
+            onClick={() => {
+              if (!window.confirm(t("lockConfirm"))) return;
+              setError(null);
+              setMessage(null);
+              startTransition(async () => {
+                const result = await lockScheduleAction(
+                  tournamentId,
+                  eventId,
+                );
+                if (!result.ok) {
+                  setError(result.error);
+                  return;
+                }
+                setMessage(t("scheduleLocked"));
+                router.refresh();
+              });
+            }}
+          >
+            {t("lockSchedule")}
           </Button>
         </div>
       ) : null}

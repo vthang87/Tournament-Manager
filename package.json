@@ -19,6 +19,7 @@
     "db:migrate": "tsx src/db/migrate-cli.ts",
     "db:seed": "tsx src/db/seed-cli.ts",
     "db:seed:scenarios": "tsx src/db/seed-demo-scenarios.ts",
+    "db:reset-demo-pins": "tsx src/db/reset-demo-court-pins.ts",
     "db:setup:pg": "node scripts/setup-pg-remote.mjs",
     "db:studio": "drizzle-kit studio"
   },

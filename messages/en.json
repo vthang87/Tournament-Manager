@@ -170,6 +170,29 @@
       "VIEWER": "Viewer"
     }
   },
+  "profile": {
+    "title": "Profile",
+    "description": "Manage your display information and account security.",
+    "personalInformation": "Personal information",
+    "personalInformationDescription": "Your username and role are managed by a platform administrator.",
+    "username": "Username",
+    "displayName": "Display name",
+    "role": "Role",
+    "saveProfile": "Save profile",
+    "security": "Security",
+    "securityDescription": "Verify your current password before setting a new one.",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm new password",
+    "passwordHint": "The new password must be at least 8 characters and differ from the current password.",
+    "changePassword": "Change password"
+  },
+  "notFoundPage": {
+    "title": "Page not found",
+    "description": "The page you requested does not exist, has moved, or is no longer available to your account.",
+    "backToDashboard": "Back to dashboard",
+    "goToLogin": "Go to sign in"
+  },
   "status": {
     "tournament": {
       "DRAFT": "Draft",
@@ -232,6 +255,8 @@
     "when": "When",
     "noTournamentsYet": "No tournaments yet",
     "runSeedHint": "Run pnpm db:seed to load sample data.",
+    "noAccessibleTournaments": "No tournaments assigned",
+    "requestAccessHint": "Ask a tournament owner to add you as a collaborator.",
     "noStagesYet": "No stages yet",
     "public": "Public"
   },
@@ -282,7 +307,7 @@
     "boards": "Boards",
     "opsAndPublic": "Ops & public",
     "tvLiveBoard": "TV live board",
-    "orgChart": "Org chart",
+    "orgChart": "Tournament diagrams",
     "publicSlug": "Public /t/{slug}",
     "noEventsYet": "No events yet.",
     "addEvent": "Add event",
@@ -294,7 +319,7 @@
     "openTimeline": "Open timeline →"
   },
   "orgChart": {
-    "title": "Org chart",
+    "title": "Tournament diagrams",
     "description": "Tournament structure and match trees (groups / knockout).",
     "tabStructure": "Tournament structure",
     "tabMatches": "Match tree",
@@ -406,7 +431,8 @@
     "openMatches": "Open matches",
     "groupsStandings": "Groups & standings",
     "viewGenerate": "View / generate",
-    "openTimeline": "Open timeline"
+    "openTimeline": "Open timeline",
+    "printSchedule": "Print schedule"
   },
   "entries": {
     "title": "Participants",
@@ -575,6 +601,7 @@
     "pinGenerated": "Generated PIN {pin} — click Set PIN to save",
     "pinEnabled": "PIN enabled",
     "pinDisabled": "No PIN — link locked",
+    "pinRequiredForPublic": "Set a PIN before creating a public link or QR code.",
     "pinSaved": "PIN saved",
     "pinSavedWithValue": "PIN saved: {pin}",
     "pinCleared": "PIN cleared",
@@ -583,14 +610,16 @@
     "copyFailed": "Could not copy",
     "showQr": "QR",
     "qrTitle": "Court {code} QR",
-    "qrHint": "Scan to open this court’s scoring link. PIN is shown if set in this browser session.",
+    "qrHint": "Scan to open scoring with a secure access token; the PIN is not exposed in the URL.",
     "qrAlt": "QR code for court {code} link",
     "qrFailed": "Could not generate QR code",
     "quickPin": "Access PIN",
     "copyPin": "Copy PIN",
+    "showPin": "Show PIN",
+    "hidePin": "Hide PIN",
     "openLink": "Open link",
     "closeQr": "Close",
-    "pinHiddenHint": "PIN is enabled but can’t be revealed — reset the PIN to show it on the QR."
+    "pinHiddenHint": "PIN is enabled but can’t be revealed — reset it to create a QR code with a preset PIN."
   },
   "courtScoring": {
     "unlockHint": "Enter the court PIN to score matches on this court.",
@@ -598,6 +627,7 @@
     "unlock": "Unlock",
     "unlocking": "Unlocking…",
     "wrongPin": "Incorrect PIN",
+    "invalidLink": "This access link is invalid or the court PIN has changed.",
     "lock": "Lock",
     "nowPlaying": "Now playing",
     "noLiveMatch": "No match in progress",
@@ -910,9 +940,16 @@
     "noUnscheduledBulk": "No unscheduled matches to bulk-assign.",
     "noActiveCourts": "No active courts available.",
     "bulkAssign": "Bulk assign",
-    "bulkAssignHint": "Places unscheduled matches onto active courts in order, sequential start times.",
-    "gapMin": "Gap between matches (min)",
+    "bulkAssignHint": "Schedules only not-started matches in the selected stage. Start-time spacing equals match duration plus rest time.",
+    "scheduleStage": "Scheduling stage",
+    "eligibleStageMatches": "{count} match(es) eligible for assignment or reassignment.",
+    "noEligibleStageMatches": "This stage has no matches eligible for scheduling.",
+    "matchNotSchedulable": "This match has started, has a result, or does not have both participants yet.",
+    "matchDurationMin": "Match duration (min)",
+    "restMin": "Rest time (min)",
     "bulkAssignUnscheduled": "Bulk assign unscheduled",
+    "bulkAssignAll": "Auto assign / reassign all",
+    "bulkAssignStage": "Auto assign / reassign stage",
     "hardConflicts": "{count} hard conflict(s) — save is blocked.",
     "softWarnings": "{count} soft warning(s); save is allowed.",
     "noConflicts": "No conflicts.",
@@ -920,10 +957,25 @@
     "hardBlocked": "{count} hard conflict(s) — save blocked.",
     "scheduleSaved": "Schedule saved.",
     "saveSchedule": "Save schedule",
+    "lockSchedule": "Lock schedule",
+    "lockConfirm": "Locking prevents all edits and automatic reassignment. Continue?",
+    "saveBeforeLock": "Save the current changes before locking the schedule.",
+    "scheduleLocked": "Schedule is locked and can no longer be reassigned or edited.",
     "bulkAssigned": "Bulk-assigned {count} match(es).",
     "upcomingMatches": "Upcoming matches",
     "noUpcoming": "No upcoming scheduled matches.",
-    "noMatchesGenerate": "No matches yet. Generate round-robin or bracket matches first."
+    "noMatchesGenerate": "No matches yet. Generate round-robin or bracket matches first.",
+    "printSchedule": "Print schedule",
+    "printPreview": "Print preview",
+    "printPreviewDescription": "Review the match schedule before printing or saving it as a PDF.",
+    "backToSchedule": "Back to schedule",
+    "printTitle": "Match schedule",
+    "printTime": "Time",
+    "printStage": "Stage",
+    "printMatch": "Match",
+    "printCourt": "Court",
+    "printStatus": "Status",
+    "printEmpty": "No matches have been scheduled yet."
   },
   "importExport": {
     "importTitle": "Import entries",

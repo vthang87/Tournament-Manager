@@ -76,6 +76,7 @@ export async function saveScheduleAssignmentsAction(
     return service.saveAssignments(actor, {
       eventId: formString(formData, "eventId") || eventId,
       assignments,
+      restMinutes: formInt(formData, "restMinutes"),
     });
   });
   if (result.ok) {
@@ -103,11 +104,27 @@ export async function bulkAssignMatchesAction(
     }
     return service.bulkAssign(actor, {
       eventId: formString(formData, "eventId") || eventId,
+      stageId: formString(formData, "stageId"),
       matchIds,
       courtIds,
       startTime: formString(formData, "startTime"),
-      gapMinutes: formInt(formData, "gapMinutes") ?? 0,
+      matchDurationMinutes:
+        formInt(formData, "matchDurationMinutes") ?? 30,
+      restMinutes: formInt(formData, "restMinutes") ?? 0,
     });
+  });
+  if (result.ok) {
+    revalidateSchedulePaths(tournamentId, eventId);
+  }
+  return result;
+}
+
+export async function lockScheduleAction(
+  tournamentId: string,
+  eventId: string,
+): Promise<ActionResult<unknown>> {
+  const result = await withActor(async (actor) => {
+    return new ScheduleService(getDb()).lockSchedule(actor, eventId);
   });
   if (result.ok) {
     revalidateSchedulePaths(tournamentId, eventId);

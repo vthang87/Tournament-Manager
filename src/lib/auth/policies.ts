@@ -7,6 +7,7 @@ import { ForbiddenError } from "@/application/errors";
  */
 export type PolicyAction =
   | "setup"
+  | "courtPin"
   | "import"
   | "draw"
   | "schedule"
@@ -17,6 +18,7 @@ export type PolicyAction =
 
 const ROLE_MATRIX: Record<PolicyAction, readonly UserRole[]> = {
   setup: ["SUPER_ADMIN", "ADMIN"],
+  courtPin: ["SUPER_ADMIN", "ADMIN", "OPERATOR"],
   import: ["SUPER_ADMIN", "ADMIN", "OPERATOR"],
   draw: ["SUPER_ADMIN", "ADMIN", "OPERATOR"],
   schedule: ["SUPER_ADMIN", "ADMIN", "OPERATOR"],

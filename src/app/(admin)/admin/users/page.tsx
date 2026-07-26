@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { UserManagementService } from "@/application/services";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
 import {
   Table,
   TableBody,
@@ -38,7 +39,10 @@ export default async function UsersPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">{t("title")}</h2>
+          <AdminBreadcrumbs section="users" current={t("title")} />
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+            {t("title")}
+          </h2>
           <p className="mt-1 text-sm text-slate-600">{t("description")}</p>
         </div>
         <Link
