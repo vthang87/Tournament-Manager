@@ -60,6 +60,7 @@ extra_css:
 nav:
   - Bắt đầu:
       - Tổng quan: index.md
+      - Quản lý tài khoản: quan-ly-tai-khoan.md
       - Chuẩn bị giải: chuan-bi-giai.md
   - Thiết lập:
       - Import và Export: import-export.md

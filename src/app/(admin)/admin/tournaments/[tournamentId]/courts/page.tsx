@@ -20,7 +20,7 @@ import {
   deleteCourtAction,
 } from "@/features/courts/actions";
 import { CourtPinControls } from "@/features/courts/court-pin-controls";
-import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import { requireAuthOrRedirect } from "@/lib/auth/require-auth";
 import { pageTitle } from "@/lib/page-title";
 
 export async function generateMetadata({
@@ -46,7 +46,7 @@ export default async function CourtsPage({
 }: {
   params: Promise<{ tournamentId: string }>;
 }) {
-  await requireRoleOrRedirect(["ADMIN"]);
+  await requireAuthOrRedirect();
   const { tournamentId } = await params;
   const db = getDb();
   const t = await getTranslations("courts");

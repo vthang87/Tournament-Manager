@@ -8,10 +8,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ClubService, PlayerService } from "@/application/services";
+import {
+  ClubService,
+  PlayerService,
+  SportService,
+} from "@/application/services";
 import { getDb } from "@/db/client";
 import { getCurrentUser } from "@/lib/auth/require-auth";
-import { canPerform } from "@/lib/auth/policies";
 import { pageTitle } from "@/lib/page-title";
 
 export async function generateMetadata() {
@@ -24,19 +27,24 @@ export const dynamic = "force-dynamic";
 export default async function PlayersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; sportId?: string }>;
 }) {
-  const { q } = await searchParams;
+  const { q, sportId } = await searchParams;
   const t = await getTranslations("players");
   const tc = await getTranslations("common");
   const db = getDb();
-  const [players, clubs] = await Promise.all([
-    new PlayerService(db).list(q),
-    new ClubService(db).list(),
+  const user = await getCurrentUser();
+  if (!user) {
+    return null;
+  }
+  const actor = { userId: user.id, role: user.role };
+  const [players, clubs, sports] = await Promise.all([
+    new PlayerService(db).list(actor, q, sportId),
+    new ClubService(db).list(actor),
+    new SportService(db).listActive(),
   ]);
   const clubName = new Map(clubs.map((c) => [c.id, c.name]));
-  const user = await getCurrentUser();
-  const canImport = user ? canPerform(user.role, "import") : false;
+  const canImport = true;
 
   return (
     <div className="space-y-6">
@@ -55,13 +63,25 @@ export default async function PlayersPage({
         ) : null}
       </div>
 
-      <form className="flex gap-2">
+      <form className="flex flex-wrap gap-2">
         <input
           name="q"
           defaultValue={q ?? ""}
           placeholder={t("searchPlaceholder")}
           className="flex h-10 w-full max-w-sm rounded-md border border-slate-200 bg-white px-3 text-sm"
         />
+        <select
+          name="sportId"
+          defaultValue={sportId ?? ""}
+          className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm"
+        >
+          <option value="">Tất cả môn</option>
+          {sports.map((sport) => (
+            <option key={sport.id} value={sport.id}>
+              {sport.name}
+            </option>
+          ))}
+        </select>
         <button
           type="submit"
           className="h-10 rounded-md border border-slate-200 bg-white px-4 text-sm hover:bg-slate-50"
@@ -93,11 +113,25 @@ export default async function PlayersPage({
                 </TableCell>
                 <TableCell>{player.gender}</TableCell>
                 <TableCell>
-                  {player.clubId
-                    ? (clubName.get(player.clubId) ?? tc("dash"))
-                    : tc("dash")}
+                  {player.sports
+                    .map((profile) =>
+                      profile.clubId
+                        ? clubName.get(profile.clubId)
+                        : null,
+                    )
+                    .filter(Boolean)
+                    .join(", ") || tc("dash")}
                 </TableCell>
-                <TableCell>{player.ranking ?? tc("dash")}</TableCell>
+                <TableCell>
+                  {player.sports
+                    .map((profile) => {
+                      const sport = sports.find(
+                        (item) => item.id === profile.sportId,
+                      );
+                      return `${sport?.name ?? profile.sportId}: ${profile.ranking ?? tc("dash")}`;
+                    })
+                    .join(" · ")}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

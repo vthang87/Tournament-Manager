@@ -32,6 +32,42 @@ export const playerGenderSchema = z.enum([
   "OTHER",
   "UNSPECIFIED",
 ]);
+export const userRoleSchema = z.enum([
+  "SUPER_ADMIN",
+  "ADMIN",
+  "OPERATOR",
+  "SCOREKEEPER",
+  "VIEWER",
+]);
+
+const usernameSchema = z
+  .string()
+  .trim()
+  .min(3)
+  .max(60)
+  .regex(
+    /^[a-z0-9._-]+$/,
+    "Username may only contain lowercase letters, numbers, dots, hyphens and underscores",
+  );
+
+export const createManagedUserSchema = z.object({
+  username: usernameSchema,
+  displayName: z.string().trim().min(1).max(120),
+  password: z.string().min(8).max(200),
+  role: userRoleSchema,
+  active: z.boolean().optional(),
+});
+
+export const updateManagedUserSchema = z.object({
+  username: usernameSchema,
+  displayName: z.string().trim().min(1).max(120),
+  role: userRoleSchema,
+  active: z.boolean(),
+});
+
+export const resetManagedUserPasswordSchema = z.object({
+  password: z.string().min(8).max(200),
+});
 
 const optionalTrimmed = z
   .string()
@@ -41,6 +77,7 @@ const optionalTrimmed = z
   .optional();
 
 export const createTournamentSchema = z.object({
+  sportId: z.string().trim().min(1),
   name: z.string().trim().min(1).max(200),
   slug: z
     .string()
@@ -145,8 +182,28 @@ export const createPlayerSchema = z.object({
     .union([z.string().trim().email(), z.literal(""), z.null()])
     .optional()
     .transform((v) => (v === "" || v === undefined ? null : v)),
-  clubId: z.string().min(1).nullable().optional(),
-  ranking: z.number().int().positive().nullable().optional(),
+  sports: z
+    .array(
+      z.object({
+        sportId: z.string().min(1),
+        clubId: z.string().min(1).nullable().optional(),
+        ranking: z.number().int().positive().nullable().optional(),
+      }),
+    )
+    .min(1)
+    .superRefine((profiles, ctx) => {
+      const seen = new Set<string>();
+      profiles.forEach((profile, index) => {
+        if (seen.has(profile.sportId)) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Each sport may only appear once",
+            path: [index, "sportId"],
+          });
+        }
+        seen.add(profile.sportId);
+      });
+    }),
 });
 
 export const updatePlayerSchema = createPlayerSchema.partial();

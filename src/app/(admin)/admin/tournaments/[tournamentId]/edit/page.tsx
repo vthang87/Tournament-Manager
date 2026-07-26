@@ -5,10 +5,10 @@ import { ActionForm } from "@/components/shared/action-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { TournamentService } from "@/application/services";
+import { SportService, TournamentService } from "@/application/services";
 import { getDb } from "@/db/client";
 import { updateTournamentAction } from "@/features/tournaments/actions";
-import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import { requireAuthOrRedirect } from "@/lib/auth/require-auth";
 import { pageTitle } from "@/lib/page-title";
 
 export async function generateMetadata({
@@ -33,7 +33,7 @@ export default async function EditTournamentPage({
 }: {
   params: Promise<{ tournamentId: string }>;
 }) {
-  await requireRoleOrRedirect(["ADMIN"]);
+  await requireAuthOrRedirect();
   const { tournamentId } = await params;
   const t = await getTranslations("tournaments");
 
@@ -43,6 +43,7 @@ export default async function EditTournamentPage({
   } catch {
     notFound();
   }
+  const sports = await new SportService(getDb()).listActive();
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
@@ -60,6 +61,27 @@ export default async function EditTournamentPage({
         className="space-y-4 rounded-lg border border-slate-200 bg-white p-6"
         action={updateTournamentAction.bind(null, tournamentId)}
       >
+        <div className="space-y-1.5">
+          <Label htmlFor="sportId">Môn thể thao</Label>
+          <select
+            id="sportId"
+            name="sportId"
+            defaultValue={tournament.sportId}
+            disabled={
+              tournament.status !== "DRAFT"
+            }
+            className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm disabled:bg-slate-100"
+          >
+            {sports.map((sport) => (
+              <option key={sport.id} value={sport.id}>
+                {sport.name}
+              </option>
+            ))}
+          </select>
+          {tournament.status !== "DRAFT" ? (
+            <input type="hidden" name="sportId" value={tournament.sportId} />
+          ) : null}
+        </div>
         <div className="space-y-1.5">
           <Label htmlFor="name">{t("name")}</Label>
           <Input id="name" name="name" required defaultValue={tournament.name} />

@@ -28,7 +28,6 @@ import { DrizzleTournamentEventRepository } from "@/db/repositories/tournament-e
 import { DrizzleTournamentRepository } from "@/db/repositories/tournament-repository";
 import { matches as matchesTable } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit";
-import { assertCanPerform } from "@/lib/auth/policies";
 import { nowIso } from "@/lib/id";
 import {
   bulkAssignSchema,
@@ -38,6 +37,7 @@ import {
   updateScheduleRuleSchema,
 } from "@/lib/validation/schemas";
 import { eq } from "drizzle-orm";
+import { TournamentAccessService } from "./tournament-access-service";
 
 function toEngineRule(record: ScheduleRuleRecord): ScheduleRule {
   return {
@@ -52,6 +52,7 @@ function toEngineRule(record: ScheduleRuleRecord): ScheduleRule {
  * Schedule rule CRUD, validation, and assignment persistence.
  */
 export class ScheduleService {
+  private readonly access: TournamentAccessService;
   private readonly scheduleRules: DrizzleScheduleRuleRepository;
   private readonly matches: DrizzleMatchRepository;
   private readonly courts: DrizzleCourtRepository;
@@ -60,6 +61,7 @@ export class ScheduleService {
   private readonly tournaments: DrizzleTournamentRepository;
 
   constructor(private readonly db: AppDatabase) {
+    this.access = new TournamentAccessService(db);
     this.scheduleRules = new DrizzleScheduleRuleRepository(db);
     this.matches = new DrizzleMatchRepository(db);
     this.courts = new DrizzleCourtRepository(db);
@@ -72,8 +74,8 @@ export class ScheduleService {
     actor: ActorContext,
     raw: unknown,
   ): Promise<ScheduleRuleRecord> {
-    assertCanPerform(actor.role, "schedule");
     const input = parseOrThrow(createScheduleRuleSchema, raw);
+    await this.access.assertForEvent(actor, input.eventId, "schedule");
     const event = await this.events.findById(input.eventId);
     if (!event) {
       throw new NotFoundError(`Event ${input.eventId} not found`);
@@ -111,12 +113,12 @@ export class ScheduleService {
     id: string,
     raw: unknown,
   ): Promise<ScheduleRuleRecord> {
-    assertCanPerform(actor.role, "schedule");
     const input = parseOrThrow(updateScheduleRuleSchema, raw);
     const existing = await this.scheduleRules.findById(id);
     if (!existing) {
       throw new NotFoundError(`Schedule rule ${id} not found`);
     }
+    await this.access.assertForEvent(actor, existing.eventId, "schedule");
     const updated = await this.scheduleRules.update(id, input);
     if (!updated) {
       throw new NotFoundError(`Schedule rule ${id} not found`);
@@ -135,11 +137,11 @@ export class ScheduleService {
   }
 
   async deleteRule(actor: ActorContext, id: string): Promise<void> {
-    assertCanPerform(actor.role, "schedule");
     const existing = await this.scheduleRules.findById(id);
     if (!existing) {
       throw new NotFoundError(`Schedule rule ${id} not found`);
     }
+    await this.access.assertForEvent(actor, existing.eventId, "schedule");
     await this.scheduleRules.delete(id);
     this.db.transaction(async (tx) => {
       await writeAuditLog(tx, {
@@ -240,8 +242,8 @@ export class ScheduleService {
     updated: MatchRecord[];
     conflicts: ScheduleConflict[];
   }> {
-    assertCanPerform(actor.role, "schedule");
     const input = parseOrThrow(saveAssignmentsSchema, raw);
+    await this.access.assertForEvent(actor, input.eventId, "schedule");
     const event = await this.events.findById(input.eventId);
     if (!event) {
       throw new NotFoundError(`Event ${input.eventId} not found`);
@@ -329,8 +331,8 @@ export class ScheduleService {
     updated: MatchRecord[];
     conflicts: ScheduleConflict[];
   }> {
-    assertCanPerform(actor.role, "schedule");
     const input = parseOrThrow(bulkAssignSchema, raw);
+    await this.access.assertForEvent(actor, input.eventId, "schedule");
     const rule = await this.resolveRule(input.eventId);
     const gap = input.gapMinutes ?? 0;
     const duration = rule.defaultMatchDurationMinutes;

@@ -5,6 +5,7 @@ import {
   EntryService,
   EventService,
   TournamentService,
+  TournamentAccessService,
   CourtService,
   createMatchOpsService,
 } from "@/application/services";
@@ -134,8 +135,15 @@ export default async function MatchDetailPage({
   }
 
   const user = await getCurrentUser();
-  const canScore = user ? canPerform(user.role, "score") : false;
-  const canCorrect = user ? canPerform(user.role, "correct") : false;
+  if (!user) {
+    notFound();
+  }
+  const access = await new TournamentAccessService(db).resolve(
+    { userId: user.id, role: user.role },
+    tournamentId,
+  );
+  const canScore = canPerform(access.role, "score");
+  const canCorrect = canPerform(access.role, "correct");
 
   const basePath = `/admin/tournaments/${tournamentId}/events/${eventId}`;
   const bothSides = Boolean(match.entryAId && match.entryBId);

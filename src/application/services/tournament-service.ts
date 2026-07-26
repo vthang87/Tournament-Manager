@@ -14,9 +14,8 @@ import {
 } from "@/core/domain/state-machines";
 import type { AppDatabase } from "@/db/client";
 import { DrizzleTournamentRepository } from "@/db/repositories/tournament-repository";
-import { tournaments } from "@/db/schema";
+import { sports, tournamentEvents, tournaments } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit";
-import { assertCanPerform } from "@/lib/auth/policies";
 import { createId, nowIso } from "@/lib/id";
 import {
   createTournamentSchema,
@@ -24,16 +23,22 @@ import {
   updateTournamentSchema,
 } from "@/lib/validation/schemas";
 import { eq } from "drizzle-orm";
+import { TournamentAccessService } from "./tournament-access-service";
 
 export class TournamentService {
   private readonly tournaments: DrizzleTournamentRepository;
+  private readonly access: TournamentAccessService;
 
   constructor(private readonly db: AppDatabase) {
     this.tournaments = new DrizzleTournamentRepository(db);
+    this.access = new TournamentAccessService(db);
   }
 
-  list() {
-    return this.tournaments.list();
+  list(actor: ActorContext) {
+    if (!actor.userId) {
+      return [];
+    }
+    return this.tournaments.listAccessibleByUser(actor.userId);
   }
 
   async getById(id: string) {
@@ -45,8 +50,19 @@ export class TournamentService {
   }
 
   async create(actor: ActorContext, raw: unknown): Promise<Tournament> {
-    assertCanPerform(actor.role, "setup");
+    if (!actor.userId) {
+      throw new NotFoundError("Authenticated user is required");
+    }
+    const ownerUserId = actor.userId;
     const input = parseOrThrow(createTournamentSchema, raw);
+    const [sport] = await this.db
+      .select()
+      .from(sports)
+      .where(eq(sports.id, input.sportId))
+      .limit(1);
+    if (!sport?.active) {
+      throw new NotFoundError(`Sport ${input.sportId} not found`);
+    }
 
     const existing = await this.tournaments.findBySlug(input.slug);
     if (existing) {
@@ -57,6 +73,8 @@ export class TournamentService {
       const now = nowIso();
       const row = {
         id: createId(),
+        ownerUserId,
+        sportId: input.sportId,
         name: input.name,
         slug: input.slug,
         description: input.description ?? null,
@@ -89,12 +107,15 @@ export class TournamentService {
     id: string,
     raw: unknown,
   ): Promise<Tournament> {
-    assertCanPerform(actor.role, "setup");
     const input = parseOrThrow(
       updateTournamentSchema,
       raw,
     ) as UpdateTournamentInput;
-    const existing = await this.getById(id);
+    const { tournament: existing } = await this.access.assert(
+      actor,
+      id,
+      "setup",
+    );
     assertTournamentNotArchived(existing.status);
 
     if (input.slug && input.slug !== existing.slug) {
@@ -104,9 +125,31 @@ export class TournamentService {
       }
     }
 
+    if (input.sportId && input.sportId !== existing.sportId) {
+      const [event] = await this.db
+        .select({ id: tournamentEvents.id })
+        .from(tournamentEvents)
+        .where(eq(tournamentEvents.tournamentId, id))
+        .limit(1);
+      if (existing.status !== "DRAFT" || event) {
+        throw new ConflictError(
+          "Tournament sport can only change while draft and before events exist",
+        );
+      }
+      const [sport] = await this.db
+        .select()
+        .from(sports)
+        .where(eq(sports.id, input.sportId))
+        .limit(1);
+      if (!sport?.active) {
+        throw new NotFoundError(`Sport ${input.sportId} not found`);
+      }
+    }
+
     return this.db.transaction(async (tx) => {
       const now = nowIso();
       const next = {
+        sportId: input.sportId ?? existing.sportId,
         name: input.name ?? existing.name,
         slug: input.slug ?? existing.slug,
         description:
@@ -141,8 +184,7 @@ export class TournamentService {
     toStatus: TournamentStatus,
   ): Promise<Tournament> {
     const action = toStatus === "ARCHIVED" ? "archive" : "setup";
-    assertCanPerform(actor.role, action);
-    const existing = await this.getById(id);
+    const { tournament: existing } = await this.access.assert(actor, id, action);
     assertTournamentTransition(existing.status, toStatus);
 
     return this.db.transaction(async (tx) => {

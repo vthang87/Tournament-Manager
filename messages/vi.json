@@ -138,7 +138,37 @@
     "tournaments": "Giải đấu",
     "clubs": "Câu lạc bộ",
     "players": "Vận động viên",
+    "users": "Tài khoản",
     "signedInAs": "Đăng nhập với vai trò {role}"
+  },
+  "users": {
+    "title": "Quản lý tài khoản",
+    "description": "Tạo tài khoản và quản lý quyền truy cập nền tảng.",
+    "new": "Tạo tài khoản",
+    "create": "Tạo tài khoản",
+    "edit": "Chỉnh sửa tài khoản",
+    "save": "Lưu thay đổi",
+    "searchPlaceholder": "Tìm theo username hoặc tên hiển thị",
+    "username": "Tên đăng nhập",
+    "displayName": "Tên hiển thị",
+    "password": "Mật khẩu",
+    "passwordHint": "Tối thiểu 8 ký tự.",
+    "role": "Vai trò hệ thống",
+    "status": "Trạng thái",
+    "active": "Đang hoạt động",
+    "inactive": "Đã vô hiệu hóa",
+    "activeAccount": "Cho phép tài khoản đăng nhập",
+    "resetPassword": "Đặt lại mật khẩu",
+    "resetPasswordDescription": "Mật khẩu hiện tại sẽ hết hiệu lực ngay sau khi lưu.",
+    "newPassword": "Mật khẩu mới",
+    "selfProtection": "Bạn không thể tự vô hiệu hóa hoặc hạ quyền Super Admin của chính mình.",
+    "roles": {
+      "SUPER_ADMIN": "Super Admin",
+      "ADMIN": "Quản trị viên",
+      "OPERATOR": "Điều hành",
+      "SCOREKEEPER": "Ghi điểm",
+      "VIEWER": "Chỉ xem"
+    }
   },
   "status": {
     "tournament": {
@@ -183,7 +213,7 @@
   "dashboard": {
     "title": "Bảng điều khiển",
     "welcome": "Tổng quan vận hành giải đấu",
-    "subtitle": "Tổng hợp trực tiếp các giải từ cơ sở dữ liệu SQLite cục bộ.",
+    "subtitle": "Tổng hợp trực tiếp các giải đang vận hành trong hệ thống.",
     "noTournaments": "Chưa có giải đấu",
     "seedHint": "Chạy {command} để nạp dữ liệu mẫu.",
     "entries": "Đăng ký",
@@ -671,7 +701,21 @@
     "ruleFinalBo321": "Chung kết BO3×21",
     "ruleFinalBo321Desc": "Best of 3, 21 điểm, max 30",
     "ruleStandardBo321": "Tiêu chuẩn BO3×21",
-    "ruleStandardBo321Desc": "Best of 3, 21 điểm, max 30"
+    "ruleStandardBo321Desc": "Best of 3, 21 điểm, max 30",
+    "rulePickleballStandardBo311": "Pickleball BO3×11",
+    "rulePickleballStandardBo311Desc": "Best of 3, 11 điểm, thắng cách biệt 2",
+    "rulePickleballFastBo115": "Pickleball nhanh BO1×15",
+    "rulePickleballFastBo115Desc": "Best of 1, 15 điểm, thắng cách biệt 2",
+    "setupPickleballStandard": "Pickleball tiêu chuẩn",
+    "setupPickleballStandardDesc": "Knockout BO3 × 11, có tranh hạng ba.",
+    "setupPickleballFast": "Pickleball nhanh",
+    "setupPickleballFastDesc": "Knockout BO1 × 15 cho giải ngắn.",
+    "setupBwfStandard": "BWF Standard",
+    "setupBwfStandardDesc": "Vòng bảng và knockout đều BO3 × 21.",
+    "setupCompanyTournament": "Company Tournament",
+    "setupCompanyTournamentDesc": "Vòng bảng BO1 × 21 và knockout BO3 × 15.",
+    "setupUniversityTournament": "University Tournament",
+    "setupUniversityTournamentDesc": "Vòng bảng nhanh và knockout BO3 × 21."
   },
   "matches": {
     "title": "Trận đấu",

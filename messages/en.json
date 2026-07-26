@@ -138,7 +138,37 @@
     "tournaments": "Tournaments",
     "clubs": "Clubs",
     "players": "Players",
+    "users": "Users",
     "signedInAs": "Signed in as {role}"
+  },
+  "users": {
+    "title": "User management",
+    "description": "Create accounts and manage platform access.",
+    "new": "Create user",
+    "create": "Create user",
+    "edit": "Edit user",
+    "save": "Save changes",
+    "searchPlaceholder": "Search by username or display name",
+    "username": "Username",
+    "displayName": "Display name",
+    "password": "Password",
+    "passwordHint": "Use at least 8 characters.",
+    "role": "Platform role",
+    "status": "Status",
+    "active": "Active",
+    "inactive": "Inactive",
+    "activeAccount": "Allow this account to sign in",
+    "resetPassword": "Reset password",
+    "resetPasswordDescription": "The current password stops working immediately after saving.",
+    "newPassword": "New password",
+    "selfProtection": "You cannot deactivate or remove Super Admin access from your own account.",
+    "roles": {
+      "SUPER_ADMIN": "Super Admin",
+      "ADMIN": "Administrator",
+      "OPERATOR": "Operator",
+      "SCOREKEEPER": "Scorekeeper",
+      "VIEWER": "Viewer"
+    }
   },
   "status": {
     "tournament": {
@@ -183,7 +213,7 @@
   "dashboard": {
     "title": "Dashboard",
     "welcome": "Tournament operations overview",
-    "subtitle": "Live summary across tournaments from the local SQLite database.",
+    "subtitle": "Live summary of tournaments currently running in the system.",
     "noTournaments": "No tournaments yet",
     "seedHint": "Run {command} to load sample data.",
     "entries": "Entries",
@@ -671,7 +701,21 @@
     "ruleFinalBo321": "Final BO3×21",
     "ruleFinalBo321Desc": "Best of 3, 21 points, max 30",
     "ruleStandardBo321": "Standard BO3×21",
-    "ruleStandardBo321Desc": "Best of 3, 21 points, max 30"
+    "ruleStandardBo321Desc": "Best of 3, 21 points, max 30",
+    "rulePickleballStandardBo311": "Pickleball BO3×11",
+    "rulePickleballStandardBo311Desc": "Best of 3, 11 points, win by 2",
+    "rulePickleballFastBo115": "Fast pickleball BO1×15",
+    "rulePickleballFastBo115Desc": "Best of 1, 15 points, win by 2",
+    "setupPickleballStandard": "Standard pickleball",
+    "setupPickleballStandardDesc": "BO3 × 11 knockout with third place.",
+    "setupPickleballFast": "Fast pickleball",
+    "setupPickleballFastDesc": "BO1 × 15 knockout for short events.",
+    "setupBwfStandard": "BWF Standard",
+    "setupBwfStandardDesc": "BO3 × 21 for both group and knockout stages.",
+    "setupCompanyTournament": "Company Tournament",
+    "setupCompanyTournamentDesc": "BO1 × 21 groups and BO3 × 15 knockout.",
+    "setupUniversityTournament": "University Tournament",
+    "setupUniversityTournamentDesc": "Fast groups and BO3 × 21 knockout."
   },
   "matches": {
     "title": "Matches",

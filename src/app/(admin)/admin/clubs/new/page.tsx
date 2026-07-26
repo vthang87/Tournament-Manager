@@ -4,7 +4,7 @@ import { ActionForm } from "@/components/shared/action-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClubAction } from "@/features/participants/actions";
-import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import { requireAuthOrRedirect } from "@/lib/auth/require-auth";
 import { pageTitle } from "@/lib/page-title";
 
 export async function generateMetadata() {
@@ -13,7 +13,7 @@ export async function generateMetadata() {
 }
 
 export default async function NewClubPage() {
-  await requireRoleOrRedirect(["ADMIN", "OPERATOR"]);
+  await requireAuthOrRedirect();
   const t = await getTranslations("clubs");
   const tc = await getTranslations("common");
 

@@ -41,6 +41,7 @@ export default async function TournamentOrgChartPage({
   params: Promise<{ tournamentId: string }>;
 }) {
   await requireRoleOrRedirect([
+    "SUPER_ADMIN",
     "ADMIN",
     "OPERATOR",
     "SCOREKEEPER",

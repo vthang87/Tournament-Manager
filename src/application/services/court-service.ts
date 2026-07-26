@@ -1,10 +1,9 @@
 import {
   ConflictError,
-  ForbiddenError,
   NotFoundError,
   ValidationError,
 } from "@/application/errors";
-import type { ActorContext, Court, UpdateCourtInput, UserRole } from "@/core/domain";
+import type { ActorContext, Court, UpdateCourtInput } from "@/core/domain";
 import {
   assertTournamentNotArchived,
 } from "@/core/domain/state-machines";
@@ -13,7 +12,6 @@ import { DrizzleCourtRepository } from "@/db/repositories/court-repository";
 import { DrizzleTournamentRepository } from "@/db/repositories/tournament-repository";
 import { courts } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit";
-import { assertCanPerform } from "@/lib/auth/policies";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { createId, nowIso } from "@/lib/id";
 import {
@@ -22,23 +20,18 @@ import {
   updateCourtSchema,
 } from "@/lib/validation/schemas";
 import { eq } from "drizzle-orm";
+import { TournamentAccessService } from "./tournament-access-service";
 
 const PIN_RE = /^\d{4,6}$/;
-const PIN_ROLES: readonly UserRole[] = ["ADMIN", "OPERATOR"];
-
-function assertCanManageCourtPin(role: UserRole) {
-  if (!PIN_ROLES.includes(role)) {
-    throw new ForbiddenError(`Role ${role} cannot manage court PIN`);
-  }
-}
-
 export class CourtService {
   private readonly courts: DrizzleCourtRepository;
   private readonly tournaments: DrizzleTournamentRepository;
+  private readonly access: TournamentAccessService;
 
   constructor(private readonly db: AppDatabase) {
     this.courts = new DrizzleCourtRepository(db);
     this.tournaments = new DrizzleTournamentRepository(db);
+    this.access = new TournamentAccessService(db);
   }
 
   listByTournament(tournamentId: string) {
@@ -58,8 +51,8 @@ export class CourtService {
   }
 
   async create(actor: ActorContext, raw: unknown): Promise<Court> {
-    assertCanPerform(actor.role, "setup");
     const input = parseOrThrow(createCourtSchema, raw);
+    await this.access.assert(actor, input.tournamentId, "setup");
 
     const tournament = await this.tournaments.findById(input.tournamentId);
     if (!tournament) {
@@ -112,7 +105,7 @@ export class CourtService {
   }
 
   async update(actor: ActorContext, id: string, raw: unknown): Promise<Court> {
-    assertCanPerform(actor.role, "setup");
+    await this.access.assertForCourt(actor, id, "setup");
     const input = parseOrThrow(updateCourtSchema, raw) as UpdateCourtInput;
     const existing = await this.getById(id);
 
@@ -161,7 +154,7 @@ export class CourtService {
     courtId: string,
     pin: string,
   ): Promise<Court> {
-    assertCanManageCourtPin(actor.role);
+    await this.access.assertForCourt(actor, courtId, "setup");
     if (!PIN_RE.test(pin)) {
       throw new ValidationError(
         "Court PIN must be 4–6 digits",
@@ -193,7 +186,7 @@ export class CourtService {
   }
 
   async clearAccessPin(actor: ActorContext, courtId: string): Promise<Court> {
-    assertCanManageCourtPin(actor.role);
+    await this.access.assertForCourt(actor, courtId, "setup");
     const existing = await this.getById(courtId);
     const tournament = await this.tournaments.findById(existing.tournamentId);
     if (tournament) {
@@ -227,7 +220,7 @@ export class CourtService {
   }
 
   async delete(actor: ActorContext, id: string): Promise<void> {
-    assertCanPerform(actor.role, "setup");
+    await this.access.assertForCourt(actor, id, "setup");
     const existing = await this.getById(id);
     const tournament = await this.tournaments.findById(existing.tournamentId);
     if (tournament) {

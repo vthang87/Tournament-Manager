@@ -191,7 +191,7 @@ export class DrizzleEntryRepository {
   async delete(id: string): Promise<boolean> {
     await this.db.delete(entryMembers).where(eq(entryMembers.entryId, id));
     const result = await this.db.delete(entries).where(eq(entries.id, id));
-    return (result.changes ?? 0) > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   async replaceMembers(

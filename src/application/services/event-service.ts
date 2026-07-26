@@ -28,7 +28,6 @@ import { DrizzleStageRepository } from "@/db/repositories/stage-repository";
 import { DrizzleEntryRepository } from "@/db/repositories/entry-repository";
 import { tournamentEvents } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit";
-import { assertCanPerform } from "@/lib/auth/policies";
 import { createId, nowIso } from "@/lib/id";
 import {
   createEventSchema,
@@ -36,6 +35,7 @@ import {
   updateEventSchema,
 } from "@/lib/validation/schemas";
 import { eq } from "drizzle-orm";
+import { TournamentAccessService } from "./tournament-access-service";
 
 export class EventService {
   private readonly events: DrizzleTournamentEventRepository;
@@ -43,6 +43,7 @@ export class EventService {
   private readonly rules: DrizzleMatchRuleRepository;
   private readonly stages: DrizzleStageRepository;
   private readonly entries: DrizzleEntryRepository;
+  private readonly access: TournamentAccessService;
 
   constructor(private readonly db: AppDatabase) {
     this.events = new DrizzleTournamentEventRepository(db);
@@ -50,6 +51,7 @@ export class EventService {
     this.rules = new DrizzleMatchRuleRepository(db);
     this.stages = new DrizzleStageRepository(db);
     this.entries = new DrizzleEntryRepository(db);
+    this.access = new TournamentAccessService(db);
   }
 
   listByTournament(tournamentId: string) {
@@ -65,8 +67,8 @@ export class EventService {
   }
 
   async create(actor: ActorContext, raw: unknown): Promise<TournamentEvent> {
-    assertCanPerform(actor.role, "setup");
     const input = parseOrThrow(createEventSchema, raw);
+    await this.access.assert(actor, input.tournamentId, "setup");
 
     const tournament = await this.tournaments.findById(input.tournamentId);
     if (!tournament) {
@@ -113,7 +115,7 @@ export class EventService {
     id: string,
     raw: unknown,
   ): Promise<TournamentEvent> {
-    assertCanPerform(actor.role, "setup");
+    await this.access.assertForEvent(actor, id, "setup");
     const input = parseOrThrow(
       updateEventSchema,
       raw,
@@ -215,7 +217,7 @@ export class EventService {
     id: string,
     toStatus: TournamentEvent["status"],
   ): Promise<TournamentEvent> {
-    assertCanPerform(actor.role, "setup");
+    await this.access.assertForEvent(actor, id, "setup");
     const existing = await this.getById(id);
     assertEventTransition(existing.status, toStatus);
 

@@ -8,6 +8,7 @@ import {
   EventService,
   MatchGenerationService,
   StageService,
+  TournamentAccessService,
   TournamentService,
 } from "@/application/services";
 import type { DrawConfigurationSnapshot } from "@/application/services/draw-service";
@@ -68,13 +69,21 @@ export default async function DrawPage({
     notFound();
   }
 
+  const user = await getCurrentUser();
+  if (!user) {
+    notFound();
+  }
+  const actor = { userId: user.id, role: user.role };
   const stages = await new StageService(db).listByEvent(eventId);
   const groupStage = stages.find((s) => s.format === "GROUP");
   const draws = new DrawService(db);
   const entries = (await new EntryService(db).listByEvent(eventId)).filter(
     (e) => e.status === "ACTIVE",
   );
-  const clubs = await new ClubService(db).list();
+  const clubs = await new ClubService(db).listForTournament(
+    actor,
+    tournamentId,
+  );
   const clubById = new Map(clubs.map((c) => [c.id, c]));
 
   const sessions = groupStage
@@ -127,8 +136,11 @@ export default async function DrawPage({
     }
   }
 
-  const user = await getCurrentUser();
-  const canDraw = user ? canPerform(user.role, "draw") : false;
+  const access = await new TournamentAccessService(db).resolve(
+    actor,
+    tournamentId,
+  );
+  const canDraw = canPerform(access.role, "draw");
   const canEdit =
     canDraw &&
     event.status === "DRAW_READY" &&

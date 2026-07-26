@@ -20,6 +20,7 @@ import {
   MatchRuleService,
   StageService,
   TournamentService,
+  TournamentAccessService,
 } from "@/application/services";
 import { getDb } from "@/db/client";
 import {
@@ -86,8 +87,15 @@ export default async function EventDetailPage({
   const readyCheck = await new EventService(db).validateReady(eventId);
 
   const user = await getCurrentUser();
-  const canSetup = user ? canPerform(user.role, "setup") : false;
-  const canDraw = user ? canPerform(user.role, "draw") : false;
+  if (!user) {
+    notFound();
+  }
+  const access = await new TournamentAccessService(db).resolve(
+    { userId: user.id, role: user.role },
+    tournamentId,
+  );
+  const canSetup = canPerform(access.role, "setup");
+  const canDraw = canPerform(access.role, "draw");
   const drawStatuses = new Set([
     "DRAW_READY",
     "DRAW_CONFIRMED",

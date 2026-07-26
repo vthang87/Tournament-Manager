@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { Users, UserRound, Trophy, LayoutDashboard } from "lucide-react";
+import {
+  Users,
+  UserRound,
+  UserCog,
+  Trophy,
+  LayoutDashboard,
+} from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import type { UserRole } from "@/core/domain";
 import { canPerform, type PolicyAction } from "@/lib/auth/policies";
@@ -20,6 +26,7 @@ export async function AdminSidebar({
     label: string;
     icon: typeof LayoutDashboard;
     requires?: PolicyAction;
+    superAdminOnly?: boolean;
   }[] = [
     {
       href: "/admin",
@@ -45,10 +52,18 @@ export async function AdminSidebar({
       icon: UserRound,
       requires: "view",
     },
+    {
+      href: "/admin/users",
+      label: t("users"),
+      icon: UserCog,
+      superAdminOnly: true,
+    },
   ];
 
   const visibleItems = navItems.filter(
-    (item) => !item.requires || canPerform(role, item.requires),
+    (item) =>
+      (!item.requires || canPerform(role, item.requires)) &&
+      (!item.superAdminOnly || role === "SUPER_ADMIN"),
   );
 
   return (

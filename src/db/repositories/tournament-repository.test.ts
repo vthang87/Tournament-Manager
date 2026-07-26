@@ -35,6 +35,8 @@ describe("TASK 001 foundation repositories", () => {
     try {
       const repo = new DrizzleTournamentRepository(db);
       const created = await repo.create({
+        ownerUserId: "seed-user-admin",
+        sportId: "sport-badminton",
         name: "Test Open",
         slug: "test-open",
         timezone: "Asia/Ho_Chi_Minh",
@@ -61,6 +63,8 @@ describe("TASK 001 foundation repositories", () => {
       const eventRepo = new DrizzleTournamentEventRepository(db);
 
       const tournament = await tournamentRepo.create({
+        ownerUserId: "seed-user-admin",
+        sportId: "sport-badminton",
         name: "Event Host",
         slug: "event-host",
         timezone: "Asia/Ho_Chi_Minh",
@@ -89,6 +93,8 @@ describe("TASK 001 foundation repositories", () => {
       const eventRepo = new DrizzleTournamentEventRepository(db);
 
       const tournament = await tournamentRepo.create({
+        ownerUserId: "seed-user-admin",
+        sportId: "sport-badminton",
         name: "FK Host",
         slug: "fk-host",
         timezone: "UTC",

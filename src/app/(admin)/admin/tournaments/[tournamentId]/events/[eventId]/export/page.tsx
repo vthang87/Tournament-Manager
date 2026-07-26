@@ -31,7 +31,13 @@ export default async function EventExportPage({
 }: {
   params: Promise<{ tournamentId: string; eventId: string }>;
 }) {
-  await requireRoleOrRedirect(["ADMIN", "OPERATOR", "SCOREKEEPER", "VIEWER"]);
+  await requireRoleOrRedirect([
+    "SUPER_ADMIN",
+    "ADMIN",
+    "OPERATOR",
+    "SCOREKEEPER",
+    "VIEWER",
+  ]);
   const { tournamentId, eventId } = await params;
   const db = getDb();
   const t = await getTranslations("importExport");

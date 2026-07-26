@@ -13,6 +13,7 @@ export interface TournamentRepository {
   findById(id: string): Promise<Tournament | null>;
   findBySlug(slug: string): Promise<Tournament | null>;
   list(): Promise<Tournament[]>;
+  listAccessibleByUser(userId: string): Promise<Tournament[]>;
   update(
     id: string,
     input: UpdateTournamentInput,

@@ -28,7 +28,6 @@ import {
 import { DrizzleStageRepository } from "@/db/repositories/stage-repository";
 import { stageRules, stages } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit";
-import { assertCanPerform } from "@/lib/auth/policies";
 import { createId, nowIso } from "@/lib/id";
 import {
   createStageSchema,
@@ -37,14 +36,17 @@ import {
   updateStageSchema,
 } from "@/lib/validation/schemas";
 import { eq } from "drizzle-orm";
+import { TournamentAccessService } from "./tournament-access-service";
 
 export class StageService {
+  private readonly access: TournamentAccessService;
   private readonly stages: DrizzleStageRepository;
   private readonly events: DrizzleTournamentEventRepository;
   private readonly tournaments: DrizzleTournamentRepository;
   private readonly rules: DrizzleMatchRuleRepository;
 
   constructor(private readonly db: AppDatabase) {
+    this.access = new TournamentAccessService(db);
     this.stages = new DrizzleStageRepository(db);
     this.events = new DrizzleTournamentEventRepository(db);
     this.tournaments = new DrizzleTournamentRepository(db);
@@ -85,8 +87,8 @@ export class StageService {
     actor: ActorContext,
     raw: unknown,
   ): Promise<{ stage: Stage; stageRule: StageRule | null }> {
-    assertCanPerform(actor.role, "setup");
     const input = parseOrThrow(createStageSchema, raw);
+    await this.access.assertForEvent(actor, input.eventId, "setup");
     await this.assertEventSetup(input.eventId);
 
     if (input.matchRuleId) {
@@ -147,7 +149,7 @@ export class StageService {
     id: string,
     raw: unknown,
   ): Promise<{ stage: Stage; stageRule: StageRule | null }> {
-    assertCanPerform(actor.role, "setup");
+    await this.access.assertForStage(actor, id, "setup");
     const input = parseOrThrow(updateStageSchema, raw) as UpdateStageInput;
     const existing = await this.getById(id);
     await this.assertEventSetup(existing.eventId);
@@ -200,8 +202,8 @@ export class StageService {
   }
 
   async reorder(actor: ActorContext, raw: unknown): Promise<Stage[]> {
-    assertCanPerform(actor.role, "setup");
     const input = parseOrThrow(reorderStagesSchema, raw);
+    await this.access.assertForEvent(actor, input.eventId, "setup");
     await this.assertEventSetup(input.eventId);
 
     const existing = await this.stages.listByEventId(input.eventId);
@@ -248,7 +250,7 @@ export class StageService {
   }
 
   async delete(actor: ActorContext, id: string): Promise<void> {
-    assertCanPerform(actor.role, "setup");
+    await this.access.assertForStage(actor, id, "setup");
     const existing = await this.getById(id);
     await this.assertEventSetup(existing.eventId);
 
@@ -292,7 +294,7 @@ export class StageService {
     id: string,
     toStatus: Stage["status"],
   ) {
-    assertCanPerform(actor.role, "setup");
+    await this.access.assertForStage(actor, id, "setup");
     const existing = await this.getById(id);
     assertStageTransition(existing.status, toStatus);
 

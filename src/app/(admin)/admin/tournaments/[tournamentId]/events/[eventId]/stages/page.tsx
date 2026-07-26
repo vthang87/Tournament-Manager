@@ -47,7 +47,13 @@ export default async function StagesPage({
 }: {
   params: Promise<{ tournamentId: string; eventId: string }>;
 }) {
-  await requireRoleOrRedirect(["ADMIN"]);
+  await requireRoleOrRedirect([
+    "SUPER_ADMIN",
+    "ADMIN",
+    "OPERATOR",
+    "SCOREKEEPER",
+    "VIEWER",
+  ]);
   const { tournamentId, eventId } = await params;
   const db = getDb();
   const t = await getTranslations("stages");
@@ -103,8 +109,8 @@ export default async function StagesPage({
           eventId={eventId}
           hasStages={stages.length > 0}
           mode="full"
-          templates={setup.listSetupTemplates()}
-          rulePresets={setup.listRulePresets()}
+          templates={setup.listSetupTemplates(tournament.sportId)}
+          rulePresets={setup.listRulePresets(tournament.sportId)}
         />
       ) : null}
 

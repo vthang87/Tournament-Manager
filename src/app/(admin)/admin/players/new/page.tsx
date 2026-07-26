@@ -4,10 +4,10 @@ import { ActionForm } from "@/components/shared/action-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { ClubService } from "@/application/services";
+import { ClubService, SportService } from "@/application/services";
 import { getDb } from "@/db/client";
 import { createPlayerAction } from "@/features/participants/actions";
-import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import { requireAuthOrRedirect } from "@/lib/auth/require-auth";
 import { pageTitle } from "@/lib/page-title";
 
 export async function generateMetadata() {
@@ -18,11 +18,15 @@ export async function generateMetadata() {
 export const dynamic = "force-dynamic";
 
 export default async function NewPlayerPage() {
-  await requireRoleOrRedirect(["ADMIN", "OPERATOR"]);
+  const user = await requireAuthOrRedirect();
+  const actor = { userId: user.id, role: user.role };
   const t = await getTranslations("players");
   const tc = await getTranslations("common");
-  const te = await getTranslations("entries");
-  const clubs = await new ClubService(getDb()).list();
+  const db = getDb();
+  const [clubs, sports] = await Promise.all([
+    new ClubService(db).list(actor),
+    new SportService(db).listActive(),
+  ]);
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
@@ -57,16 +61,38 @@ export default async function NewPlayerPage() {
             <option value="UNSPECIFIED">{tc("unspecified")}</option>
           </Select>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="clubId">{te("club")}</Label>
-          <Select id="clubId" name="clubId" defaultValue="">
-            <option value="">{tc("none")}</option>
-            {clubs.map((club) => (
-              <option key={club.id} value={club.id}>
-                {club.name}
-              </option>
-            ))}
-          </Select>
+        <div className="space-y-3">
+          <Label>Môn thể thao</Label>
+          {sports.map((sport, index) => (
+            <div
+              key={sport.id}
+              className="grid gap-3 rounded-md border border-slate-200 p-3 md:grid-cols-[auto_1fr_1fr]"
+            >
+              <label className="flex items-center gap-2 font-medium">
+                <input
+                  type="checkbox"
+                  name="sportIds"
+                  value={sport.id}
+                  defaultChecked={index === 0}
+                />
+                {sport.name}
+              </label>
+              <Select name={`clubId:${sport.id}`} defaultValue="">
+                <option value="">{tc("none")}</option>
+                {clubs.map((club) => (
+                  <option key={club.id} value={club.id}>
+                    {club.name}
+                  </option>
+                ))}
+              </Select>
+              <Input
+                name={`ranking:${sport.id}`}
+                type="number"
+                min={1}
+                placeholder={tc("ranking")}
+              />
+            </div>
+          ))}
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-1.5">
@@ -77,10 +103,6 @@ export default async function NewPlayerPage() {
             <Label htmlFor="phone">{tc("phone")}</Label>
             <Input id="phone" name="phone" />
           </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="ranking">{tc("ranking")}</Label>
-          <Input id="ranking" name="ranking" type="number" min={1} />
         </div>
       </ActionForm>
     </div>

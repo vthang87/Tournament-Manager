@@ -9,6 +9,7 @@ import {
   EventService,
   ScheduleService,
   StageService,
+  TournamentAccessService,
   TournamentService,
 } from "@/application/services";
 import { getDb } from "@/db/client";
@@ -74,11 +75,16 @@ export default async function EventSchedulePage({
     notFound();
   }
 
+  const user = await getCurrentUser();
+  if (!user) {
+    notFound();
+  }
+  const actor = { userId: user.id, role: user.role };
   const [courts, stages, entries, clubs, scheduleService] = await Promise.all([
     new CourtService(db).listByTournament(tournamentId),
     new StageService(db).listByEvent(eventId),
     new EntryService(db).listByEvent(eventId),
-    new ClubService(db).list(),
+    new ClubService(db).listForTournament(actor, tournamentId),
     Promise.resolve(new ScheduleService(db)),
   ]);
 
@@ -101,8 +107,11 @@ export default async function EventSchedulePage({
   const { startUtc, endUtc } = resolveDayWindowUtc(tournament);
   const timeSlots = buildTimeSlots(startUtc, endUtc, 30);
 
-  const user = await getCurrentUser();
-  const canSchedule = user ? canPerform(user.role, "schedule") : false;
+  const access = await new TournamentAccessService(db).resolve(
+    actor,
+    tournamentId,
+  );
+  const canSchedule = canPerform(access.role, "schedule");
 
   const matchDtos = matches.map((m) => {
     const a = m.entryAId ? (entryName.get(m.entryAId) ?? "?") : tc("tbd");

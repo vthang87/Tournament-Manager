@@ -33,7 +33,6 @@ import { DrizzleTournamentEventRepository } from "@/db/repositories/tournament-e
 import { DrizzleTournamentRepository } from "@/db/repositories/tournament-repository";
 import { matchSets, matches, stages, tournamentEvents } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit";
-import { assertCanPerform } from "@/lib/auth/policies";
 import { createId, nowIso } from "@/lib/id";
 import {
   generateMatchesSchema,
@@ -41,6 +40,7 @@ import {
   resetMatchesSchema,
 } from "@/lib/validation/schemas";
 import { eq, inArray } from "drizzle-orm";
+import { TournamentAccessService } from "./tournament-access-service";
 
 export type GenerateMatchesResult = {
   matches: MatchRecord[];
@@ -64,6 +64,7 @@ export class MatchGenerationService {
   private readonly events: DrizzleTournamentEventRepository;
   private readonly tournaments: DrizzleTournamentRepository;
   private readonly rules: DrizzleMatchRuleRepository;
+  private readonly access: TournamentAccessService;
 
   constructor(private readonly db: AppDatabase) {
     this.matches = new DrizzleMatchRepository(db);
@@ -72,6 +73,7 @@ export class MatchGenerationService {
     this.events = new DrizzleTournamentEventRepository(db);
     this.tournaments = new DrizzleTournamentRepository(db);
     this.rules = new DrizzleMatchRuleRepository(db);
+    this.access = new TournamentAccessService(db);
   }
 
   async listByStage(stageId: string) {
@@ -112,8 +114,8 @@ export class MatchGenerationService {
     actor: ActorContext,
     raw: unknown,
   ): Promise<GenerateMatchesResult> {
-    assertCanPerform(actor.role, "draw");
     const input = parseOrThrow(generateMatchesSchema, raw);
+    await this.access.assertForEvent(actor, input.eventId, "draw");
 
     const event = await this.events.findById(input.eventId);
     if (!event) {
@@ -331,15 +333,18 @@ export class MatchGenerationService {
     actor: ActorContext,
     raw: unknown,
   ): Promise<{ deleted: number }> {
-    assertCanPerform(actor.role, "setup");
-    if (actor.role !== "ADMIN") {
+    const input = parseOrThrow(resetMatchesSchema, raw);
+    const access = await this.access.assertForEvent(
+      actor,
+      input.eventId,
+      "setup",
+    );
+    if (access.role !== "ADMIN") {
       throw new DomainStateError(
         "Only ADMIN can reset matches",
         "ADMIN_REQUIRED",
       );
     }
-    const input = parseOrThrow(resetMatchesSchema, raw);
-
     const stage = await this.stages.findById(input.stageId);
     if (!stage || stage.eventId !== input.eventId) {
       throw new NotFoundError(`Stage ${input.stageId} not found for event`);
@@ -348,11 +353,10 @@ export class MatchGenerationService {
     const hasScores = await this.matches.stageHasScores(input.stageId);
 
     return this.db.transaction(async (tx) => {
-      const existing = tx
+      const existing = await tx
         .select()
         .from(matches)
-        .where(eq(matches.stageId, input.stageId))
-        .all();
+        .where(eq(matches.stageId, input.stageId));
       const ids = existing.map((row) => row.id);
       if (ids.length > 0) {
         await tx.delete(matchSets).where(inArray(matchSets.matchId, ids))

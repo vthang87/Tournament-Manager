@@ -1,9 +1,24 @@
-import { boolean, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  pgTable,
+  primaryKey,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
+import { users } from "./identity";
+import { sports } from "./sports";
 
 export const tournaments = pgTable(
   "tournaments",
   {
     id: text("id").primaryKey(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    sportId: text("sport_id")
+      .notNull()
+      .references(() => sports.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     slug: text("slug").notNull(),
     description: text("description"),
@@ -26,7 +41,32 @@ export const tournaments = pgTable(
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
-  (table) => [uniqueIndex("tournaments_slug_uidx").on(table.slug)],
+  (table) => [
+    uniqueIndex("tournaments_slug_uidx").on(table.slug),
+    index("tournaments_owner_user_id_idx").on(table.ownerUserId),
+    index("tournaments_sport_id_idx").on(table.sportId),
+  ],
+);
+
+export const tournamentMembers = pgTable(
+  "tournament_members",
+  {
+    tournamentId: text("tournament_id")
+      .notNull()
+      .references(() => tournaments.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: text("role", {
+      enum: ["ADMIN", "OPERATOR", "SCOREKEEPER", "VIEWER"],
+    }).notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tournamentId, table.userId] }),
+    index("tournament_members_user_id_idx").on(table.userId),
+  ],
 );
 
 export const tournamentEvents = pgTable("tournament_events", {

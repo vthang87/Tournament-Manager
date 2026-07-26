@@ -8,7 +8,12 @@
 
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { pathToFileURL } from "node:url";
-import type { ActorContext, MatchRecord, MatchWithSets } from "@/core/domain";
+import {
+  SPORT_IDS,
+  type ActorContext,
+  type MatchRecord,
+  type MatchWithSets,
+} from "@/core/domain";
 import type { MatchRuleSnapshot } from "@/core/tournament-engine/match-rules";
 import {
   BracketService,
@@ -28,6 +33,7 @@ import {
   matchRules,
   matches,
   players,
+  playerSports,
   stageRules,
   stages,
   tournamentEvents,
@@ -397,7 +403,7 @@ async function upsertAdmin(db: AppDatabase): Promise<void> {
     username: process.env.SEED_ADMIN_USERNAME ?? "admin",
     passwordHash,
     displayName: process.env.SEED_ADMIN_DISPLAY_NAME ?? "Local Admin",
-    role: "ADMIN" as const,
+    role: "SUPER_ADMIN" as const,
     active: true,
     updatedAt: now,
   };
@@ -426,7 +432,13 @@ async function upsertSportDirectory(
       .from(clubs)
       .where(eq(clubs.id, id))
       .limit(1);
-    const values = { name, shortName, logoUrl: null, updatedAt: now };
+    const values = {
+      ownerUserId: ADMIN_ID,
+      name,
+      shortName,
+      logoUrl: null,
+      updatedAt: now,
+    };
     if (existing) {
       await db.update(clubs).set(values).where(eq(clubs.id, id));
     } else {
@@ -439,13 +451,12 @@ async function upsertSportDirectory(
     const name = playerName(sport, index);
     const values = {
       name,
+      ownerUserId: ADMIN_ID,
       displayName: name,
       gender: "MALE" as const,
       dateOfBirth: null,
       phone: null,
       email: null,
-      clubId: clubId(sport, index % clubDefinitions.length),
-      ranking: index + 1,
       metadataJson: JSON.stringify({ sport: sport.toUpperCase() }),
       updatedAt: now,
     };
@@ -459,6 +470,27 @@ async function upsertSportDirectory(
     } else {
       await db.insert(players).values({ id, ...values, createdAt: now });
     }
+    const profileClubId = clubId(sport, index % clubDefinitions.length);
+    const profileSportId =
+      sport === "pickleball" ? SPORT_IDS.PICKLEBALL : SPORT_IDS.BADMINTON;
+    await db
+      .insert(playerSports)
+      .values({
+        playerId: id,
+        sportId: profileSportId,
+        clubId: profileClubId,
+        ranking: index + 1,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [playerSports.playerId, playerSports.sportId],
+        set: {
+          clubId: profileClubId,
+          ranking: index + 1,
+          updatedAt: now,
+        },
+      });
   }
 }
 
@@ -509,6 +541,11 @@ async function upsertScenarioBase(
     .where(eq(tournaments.id, ids.tournament))
     .limit(1);
   const tournamentValues = {
+    ownerUserId: ADMIN_ID,
+    sportId:
+      definition.sport === "pickleball"
+        ? SPORT_IDS.PICKLEBALL
+        : SPORT_IDS.BADMINTON,
     name: definition.name,
     slug: definition.slug,
     description: `${definition.sport === "pickleball" ? "Pickleball" : "Cầu lông"} demo — 32 đôi nam, 8 bảng × 4, 4 sân.`,

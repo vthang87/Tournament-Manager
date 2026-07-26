@@ -133,6 +133,6 @@ export class DrizzleCourtRepository {
 
   async delete(id: string): Promise<boolean> {
     const result = await this.db.delete(courts).where(eq(courts.id, id));
-    return (result.changes ?? 0) > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 }

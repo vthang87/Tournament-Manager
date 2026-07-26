@@ -13,6 +13,17 @@ import {
   type ActionResult,
 } from "@/features/shared/action-utils";
 
+function playerSportsFromForm(formData: FormData) {
+  return formData.getAll("sportIds").map((value) => {
+    const sportId = String(value);
+    return {
+      sportId,
+      clubId: formOptionalString(formData, `clubId:${sportId}`),
+      ranking: formInt(formData, `ranking:${sportId}`),
+    };
+  });
+}
+
 export async function createClubAction(
   formData: FormData,
 ): Promise<ActionResult<{ id: string }>> {
@@ -58,8 +69,7 @@ export async function createPlayerAction(
         "UNSPECIFIED") as PlayerGender,
       email: formOptionalString(formData, "email"),
       phone: formOptionalString(formData, "phone"),
-      clubId: formOptionalString(formData, "clubId"),
-      ranking: formInt(formData, "ranking"),
+      sports: playerSportsFromForm(formData),
     });
   });
   if (result.ok) {
@@ -81,8 +91,7 @@ export async function updatePlayerAction(
         "UNSPECIFIED") as PlayerGender,
       email: formOptionalString(formData, "email"),
       phone: formOptionalString(formData, "phone"),
-      clubId: formOptionalString(formData, "clubId"),
-      ranking: formInt(formData, "ranking"),
+      sports: playerSportsFromForm(formData),
     });
   });
   if (result.ok) {

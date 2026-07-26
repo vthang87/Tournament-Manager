@@ -11,7 +11,7 @@ import {
 import { getDb } from "@/db/client";
 import { createEntryAction } from "@/features/entries/actions";
 import { EntryRegistrationForm } from "@/features/entries/components/entry-registration-form";
-import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import { requireAuthOrRedirect } from "@/lib/auth/require-auth";
 import { requiredMemberCount } from "@/core/domain/entry-rules";
 import { pageTitle } from "@/lib/page-title";
 
@@ -45,7 +45,8 @@ export default async function NewEntryPage({
 }: {
   params: Promise<{ tournamentId: string; eventId: string }>;
 }) {
-  await requireRoleOrRedirect(["ADMIN", "OPERATOR"]);
+  const user = await requireAuthOrRedirect();
+  const actor = { userId: user.id, role: user.role };
   const { tournamentId, eventId } = await params;
   const db = getDb();
   const t = await getTranslations("entries");
@@ -63,8 +64,8 @@ export default async function NewEntryPage({
   }
 
   const [players, clubs, registeredPlayerIds] = await Promise.all([
-    new PlayerService(db).list(),
-    new ClubService(db).list(),
+    new PlayerService(db).listForTournament(actor, tournamentId),
+    new ClubService(db).listForTournament(actor, tournamentId),
     new EntryService(db).listRegisteredPlayerIds(eventId),
   ]);
   const taken = new Set(registeredPlayerIds);
@@ -106,8 +107,8 @@ export default async function NewEntryPage({
         players={availablePlayers.map((p) => ({
           id: p.id,
           displayName: p.displayName,
-          clubName: p.clubId
-            ? (clubs.find((c) => c.id === p.clubId)?.name ?? null)
+          clubName: p.sports[0]?.clubId
+            ? (clubs.find((c) => c.id === p.sports[0]?.clubId)?.name ?? null)
             : null,
         }))}
         clubs={clubs.map((c) => ({ id: c.id, name: c.name }))}

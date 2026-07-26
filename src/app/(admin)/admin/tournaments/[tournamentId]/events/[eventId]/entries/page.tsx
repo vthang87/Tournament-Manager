@@ -14,6 +14,7 @@ import {
   EntryService,
   EventService,
   PlayerService,
+  TournamentAccessService,
   TournamentService,
 } from "@/application/services";
 import { getDb } from "@/db/client";
@@ -66,11 +67,16 @@ export default async function EntriesPage({
     notFound();
   }
 
+  const user = await getCurrentUser();
+  if (!user) {
+    notFound();
+  }
+  const actor = { userId: user.id, role: user.role };
   const entryService = new EntryService(db);
   const [entries, summary, players] = await Promise.all([
     entryService.listByEvent(eventId),
     entryService.validationSummary(eventId),
-    new PlayerService(db).list(),
+    new PlayerService(db).listForTournament(actor, tournamentId),
   ]);
   const playerName = new Map(players.map((p) => [p.id, p.displayName]));
 
@@ -82,8 +88,11 @@ export default async function EntriesPage({
     filtered = filtered.filter((e) => e.seed != null);
   }
 
-  const user = await getCurrentUser();
-  const canImport = user ? canPerform(user.role, "import") : false;
+  const access = await new TournamentAccessService(db).resolve(
+    actor,
+    tournamentId,
+  );
+  const canImport = canPerform(access.role, "import");
   const isDoubles = event.type === "DOUBLES";
   const summaryText = isDoubles
     ? t("pairsSummary", {

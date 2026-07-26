@@ -1,4 +1,8 @@
 export { TournamentService } from "./tournament-service";
+export { TournamentAccessService } from "./tournament-access-service";
+export { TournamentMemberService } from "./tournament-member-service";
+export { SportService } from "./sport-service";
+export { UserManagementService } from "./user-management-service";
 export { EventService } from "./event-service";
 export { CourtService } from "./court-service";
 export { StageService } from "./stage-service";

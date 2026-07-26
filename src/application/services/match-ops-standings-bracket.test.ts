@@ -26,7 +26,13 @@ import { createDb } from "@/db/client";
 import { runMigrations } from "@/db/migrate";
 import { DrizzleMatchRepository } from "@/db/repositories/match-repository";
 import { DrizzleGroupRepository } from "@/db/repositories/schedule-repository";
-import { auditLogs, entries, entryMembers, players } from "@/db/schema";
+import {
+  auditLogs,
+  entries,
+  entryMembers,
+  players,
+  playerSports,
+} from "@/db/schema";
 import { createId, nowIso } from "@/lib/id";
 import { ensureActors } from "@/test/actor-users";
 
@@ -139,15 +145,22 @@ describe("TASK 009–013 match ops / standings / bracket / schedule", () => {
       const entryId = createId();
       await db.insert(players).values({
         id: playerId,
+        ownerUserId: admin.userId!,
         name: `Player ${i + 1}`,
         displayName: `P${i + 1}`,
         gender: "UNSPECIFIED",
         dateOfBirth: null,
         phone: null,
         email: null,
+        metadataJson: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(playerSports).values({
+        playerId,
+        sportId: "sport-badminton",
         clubId: null,
         ranking: null,
-        metadataJson: null,
         createdAt: now,
         updatedAt: now,
       });

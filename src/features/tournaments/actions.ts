@@ -18,6 +18,7 @@ export async function createTournamentAction(
     const service = new TournamentService(getDb());
     return service.create(actor, {
       name: formString(formData, "name"),
+      sportId: formString(formData, "sportId"),
       slug: formString(formData, "slug"),
       description: formOptionalString(formData, "description"),
       location: formOptionalString(formData, "location"),
@@ -42,6 +43,7 @@ export async function updateTournamentAction(
     const service = new TournamentService(getDb());
     return service.update(actor, tournamentId, {
       name: formString(formData, "name"),
+      sportId: formString(formData, "sportId"),
       slug: formString(formData, "slug"),
       description: formOptionalString(formData, "description"),
       location: formOptionalString(formData, "location"),

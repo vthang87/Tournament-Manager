@@ -26,28 +26,34 @@ import {
   tournamentEvents,
 } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit";
-import { assertCanPerform } from "@/lib/auth/policies";
 import { createId, nowIso } from "@/lib/id";
 import { and, eq } from "drizzle-orm";
+import { TournamentAccessService } from "./tournament-access-service";
 
 export class EventSetupService {
   private readonly events: DrizzleTournamentEventRepository;
   private readonly tournaments: DrizzleTournamentRepository;
+  private readonly access: TournamentAccessService;
 
   constructor(private readonly db: AppDatabase) {
     this.events = new DrizzleTournamentEventRepository(db);
     this.tournaments = new DrizzleTournamentRepository(db);
+    this.access = new TournamentAccessService(db);
   }
 
-  listRulePresets() {
-    return MATCH_RULE_PRESETS;
+  listRulePresets(sportId?: string) {
+    return sportId
+      ? MATCH_RULE_PRESETS.filter((preset) => preset.sportId === sportId)
+      : MATCH_RULE_PRESETS;
   }
 
-  listSetupTemplates() {
-    return EVENT_SETUP_TEMPLATES;
+  listSetupTemplates(sportId?: string) {
+    return sportId
+      ? EVENT_SETUP_TEMPLATES.filter((template) => template.sportId === sportId)
+      : EVENT_SETUP_TEMPLATES;
   }
 
-  private async assertEventSetup(eventId: string) {
+  private async assertEventSetup(actor: ActorContext, eventId: string) {
     const event = await this.events.findById(eventId);
     if (!event) {
       throw new NotFoundError(`Event ${eventId} not found`);
@@ -58,7 +64,8 @@ export class EventSetupService {
       throw new NotFoundError(`Tournament ${event.tournamentId} not found`);
     }
     assertTournamentNotArchived(tournament.status);
-    return event;
+    await this.access.assert(actor, tournament.id, "setup");
+    return { event, tournament };
   }
 
   /** Create a single rule from preset if name not already present. */
@@ -67,13 +74,18 @@ export class EventSetupService {
     eventId: string,
     presetId: string,
   ): Promise<{ rule: MatchRuleRecord; created: boolean }> {
-    assertCanPerform(actor.role, "setup");
-    await this.assertEventSetup(eventId);
+    const { tournament } = await this.assertEventSetup(actor, eventId);
     const preset = getMatchRulePreset(presetId);
     if (!preset) {
       throw new ValidationError(
         `Unknown rule preset: ${presetId}`,
         "UNKNOWN_PRESET",
+      );
+    }
+    if (preset.sportId !== tournament.sportId) {
+      throw new ValidationError(
+        "Rule preset does not belong to the tournament sport",
+        "PRESET_SPORT_MISMATCH",
       );
     }
 
@@ -123,13 +135,18 @@ export class EventSetupService {
     stagesCreated: number;
     replacedStages: number;
   }> {
-    assertCanPerform(actor.role, "setup");
-    const event = await this.assertEventSetup(eventId);
+    const { event, tournament } = await this.assertEventSetup(actor, eventId);
     const template = getEventSetupTemplate(templateId);
     if (!template) {
       throw new ValidationError(
         `Unknown setup template: ${templateId}`,
         "UNKNOWN_TEMPLATE",
+      );
+    }
+    if (template.sportId !== tournament.sportId) {
+      throw new ValidationError(
+        "Setup template does not belong to the tournament sport",
+        "TEMPLATE_SPORT_MISMATCH",
       );
     }
 

@@ -8,6 +8,20 @@
       "when": 1784953609617,
       "tag": "0000_sad_adam_destine",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784966135052,
+      "tag": "0001_great_skaar",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784972200000,
+      "tag": "0002_super_admin_user_management",
+      "breakpoints": true
     }
   ]
 }

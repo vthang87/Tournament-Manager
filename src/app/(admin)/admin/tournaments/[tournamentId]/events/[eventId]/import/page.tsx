@@ -4,7 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { EventService, TournamentService } from "@/application/services";
 import { getDb } from "@/db/client";
 import { ImportEntriesClient } from "@/features/import-export/import-entries-client";
-import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import { requireAuthOrRedirect } from "@/lib/auth/require-auth";
 import { pageTitle } from "@/lib/page-title";
 
 export async function generateMetadata({
@@ -31,7 +31,7 @@ export default async function EventImportPage({
 }: {
   params: Promise<{ tournamentId: string; eventId: string }>;
 }) {
-  await requireRoleOrRedirect(["ADMIN", "OPERATOR"]);
+  await requireAuthOrRedirect();
   const { tournamentId, eventId } = await params;
   const db = getDb();
   const t = await getTranslations("importExport");

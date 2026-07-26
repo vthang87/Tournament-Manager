@@ -15,7 +15,13 @@ import { DrizzleEntryRepository } from "@/db/repositories/entry-repository";
 import { DrizzlePlayerRepository } from "@/db/repositories/player-repository";
 import { DrizzleTournamentEventRepository } from "@/db/repositories/tournament-event-repository";
 import { DrizzleTournamentRepository } from "@/db/repositories/tournament-repository";
-import { clubs, entries, entryMembers, players } from "@/db/schema";
+import {
+  clubs,
+  entries,
+  entryMembers,
+  players,
+  playerSports,
+} from "@/db/schema";
 import {
   parseEntriesWorkbook,
   type EventImportKind,
@@ -26,8 +32,8 @@ import type {
   SinglesImportRow,
 } from "@/features/import-export/parser";
 import { writeAuditLog } from "@/lib/audit";
-import { assertCanPerform } from "@/lib/auth/policies";
 import { createId, nowIso } from "@/lib/id";
+import { TournamentAccessService } from "./tournament-access-service";
 
 export type ExcelImportConfirmResult = {
   createdEntryIds: string[];
@@ -51,6 +57,7 @@ export class ExcelImportService {
   private readonly clubs: DrizzleClubRepository;
   private readonly players: DrizzlePlayerRepository;
   private readonly entries: DrizzleEntryRepository;
+  private readonly access: TournamentAccessService;
 
   constructor(private readonly db: AppDatabase) {
     this.events = new DrizzleTournamentEventRepository(db);
@@ -58,6 +65,7 @@ export class ExcelImportService {
     this.clubs = new DrizzleClubRepository(db);
     this.players = new DrizzlePlayerRepository(db);
     this.entries = new DrizzleEntryRepository(db);
+    this.access = new TournamentAccessService(db);
   }
 
   async previewWorkbook(
@@ -68,8 +76,8 @@ export class ExcelImportService {
     eventType: EventImportKind;
     preview: ImportPreviewResult<SinglesImportRow | DoublesImportRow>;
   }> {
-    assertCanPerform(actor.role, "import");
-    const event = await this.requireImportableEvent(eventId);
+    await this.access.assertForEvent(actor, eventId, "import");
+    const { event } = await this.requireImportableEvent(eventId);
     if (event.type !== "SINGLES" && event.type !== "DOUBLES") {
       throw new ValidationError(
         "Only SINGLES and DOUBLES events support Excel import",
@@ -89,8 +97,8 @@ export class ExcelImportService {
     eventId: string,
     rows: Array<SinglesImportRow | DoublesImportRow>,
   ): Promise<ExcelImportConfirmResult> {
-    assertCanPerform(actor.role, "import");
-    const event = await this.requireImportableEvent(eventId);
+    await this.access.assertForEvent(actor, eventId, "import");
+    const { event, tournament } = await this.requireImportableEvent(eventId);
     if (event.type !== "SINGLES" && event.type !== "DOUBLES") {
       throw new ValidationError(
         "Only SINGLES and DOUBLES events support Excel import",
@@ -142,7 +150,7 @@ export class ExcelImportService {
       }
     }
 
-    const existingPlayers = await this.players.list();
+    const existingPlayers = await this.players.list(tournament.ownerUserId);
     const playerByName = new Map(
       existingPlayers.flatMap((p) => [
         [p.name.toLowerCase(), p] as const,
@@ -175,7 +183,7 @@ export class ExcelImportService {
       }
     }
 
-    const existingClubs = await this.clubs.list();
+    const existingClubs = await this.clubs.list(tournament.ownerUserId);
     const clubByName = new Map(
       existingClubs.map((c) => [c.name.toLowerCase(), c] as const),
     );
@@ -184,7 +192,7 @@ export class ExcelImportService {
     const createdPlayerIds: string[] = [];
     const createdClubIds: string[] = [];
 
-    return this.db.transaction(async (tx) => {
+    await this.db.transaction(async (tx) => {
       const now = nowIso();
       const clubIdByName = new Map(
         [...clubByName.entries()].map(([k, v]) => [k, v.id]),
@@ -207,6 +215,7 @@ export class ExcelImportService {
         const clubId = createId();
         await tx.insert(clubs).values({
           id: clubId,
+          ownerUserId: tournament.ownerUserId,
           name: clubName,
           shortName: null,
           logoUrl: null,
@@ -233,20 +242,46 @@ export class ExcelImportService {
         const key = playerName.toLowerCase();
         const existingId = playerIdByName.get(key);
         if (existingId) {
+          const existingPlayer = playerByName.get(key);
+          if (
+            existingPlayer &&
+            !existingPlayer.sports.some(
+              (profile) => profile.sportId === tournament.sportId,
+            )
+          ) {
+            await tx
+              .insert(playerSports)
+              .values({
+                playerId: existingId,
+                sportId: tournament.sportId,
+                clubId,
+                ranking: null,
+                createdAt: now,
+                updatedAt: now,
+              })
+              .onConflictDoNothing();
+          }
           return existingId;
         }
         const playerId = createId();
         await tx.insert(players).values({
           id: playerId,
+          ownerUserId: tournament.ownerUserId,
           name: playerName,
           displayName: playerName,
           gender: "UNSPECIFIED",
           dateOfBirth: null,
           phone: null,
           email: null,
+          metadataJson: null,
+          createdAt: now,
+          updatedAt: now,
+        });
+        await tx.insert(playerSports).values({
+          playerId,
+          sportId: tournament.sportId,
           clubId,
           ranking: null,
-          metadataJson: null,
           createdAt: now,
           updatedAt: now,
         });
@@ -334,6 +369,6 @@ export class ExcelImportService {
     }
     assertTournamentNotArchived(tournament.status);
     assertEventMutable(event.status);
-    return event;
+    return { event, tournament };
   }
 }

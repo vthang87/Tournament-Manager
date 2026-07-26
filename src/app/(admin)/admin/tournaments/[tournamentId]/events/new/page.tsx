@@ -9,7 +9,7 @@ import { Select } from "@/components/ui/select";
 import { TournamentService } from "@/application/services";
 import { getDb } from "@/db/client";
 import { createEventAction } from "@/features/events/actions";
-import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import { requireAuthOrRedirect } from "@/lib/auth/require-auth";
 import { pageTitle } from "@/lib/page-title";
 
 export async function generateMetadata({
@@ -34,7 +34,7 @@ export default async function NewEventPage({
 }: {
   params: Promise<{ tournamentId: string }>;
 }) {
-  await requireRoleOrRedirect(["ADMIN"]);
+  await requireAuthOrRedirect();
   const { tournamentId } = await params;
   const t = await getTranslations("events");
   const tc = await getTranslations("common");

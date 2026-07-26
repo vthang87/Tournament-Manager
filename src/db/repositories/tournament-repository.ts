@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import type {
   CreateTournamentInput,
   Tournament,
@@ -7,12 +7,14 @@ import type {
 } from "@/core/domain";
 import type { TournamentRepository } from "@/application/ports";
 import type { AppDatabase } from "@/db/client";
-import { tournaments } from "@/db/schema";
+import { tournamentMembers, tournaments } from "@/db/schema";
 import { createId, nowIso } from "@/lib/id";
 
 function mapTournament(row: typeof tournaments.$inferSelect): Tournament {
   return {
     id: row.id,
+    ownerUserId: row.ownerUserId,
+    sportId: row.sportId,
     name: row.name,
     slug: row.slug,
     description: row.description,
@@ -33,6 +35,8 @@ export class DrizzleTournamentRepository implements TournamentRepository {
     const now = nowIso();
     const row = {
       id: createId(),
+      ownerUserId: input.ownerUserId,
+      sportId: input.sportId,
       name: input.name,
       slug: input.slug,
       description: input.description ?? null,
@@ -72,6 +76,23 @@ export class DrizzleTournamentRepository implements TournamentRepository {
     return rows.map(mapTournament);
   }
 
+  async listAccessibleByUser(userId: string): Promise<Tournament[]> {
+    const rows = await this.db
+      .selectDistinct({ tournament: tournaments })
+      .from(tournaments)
+      .leftJoin(
+        tournamentMembers,
+        eq(tournamentMembers.tournamentId, tournaments.id),
+      )
+      .where(
+        or(
+          eq(tournaments.ownerUserId, userId),
+          eq(tournamentMembers.userId, userId),
+        ),
+      );
+    return rows.map((row) => mapTournament(row.tournament));
+  }
+
   async update(
     id: string,
     input: UpdateTournamentInput,
@@ -82,6 +103,7 @@ export class DrizzleTournamentRepository implements TournamentRepository {
     }
     const now = nowIso();
     const next = {
+      sportId: input.sportId ?? existing.sportId,
       name: input.name ?? existing.name,
       slug: input.slug ?? existing.slug,
       description:

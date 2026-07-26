@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type {
   Club,
   CreateClubInput,
@@ -12,6 +12,7 @@ import { matchesSearch } from "@/lib/normalize-search";
 function mapClub(row: typeof clubs.$inferSelect): Club {
   return {
     id: row.id,
+    ownerUserId: row.ownerUserId,
     name: row.name,
     shortName: row.shortName,
     logoUrl: row.logoUrl,
@@ -27,6 +28,7 @@ export class DrizzleClubRepository {
     const now = nowIso();
     const row = {
       id: createId(),
+      ownerUserId: input.ownerUserId,
       name: input.name,
       shortName: input.shortName ?? null,
       logoUrl: input.logoUrl ?? null,
@@ -37,17 +39,25 @@ export class DrizzleClubRepository {
     return mapClub(row);
   }
 
-  async findById(id: string): Promise<Club | null> {
+  async findById(id: string, ownerUserId?: string): Promise<Club | null> {
     const rows = await this.db
       .select()
       .from(clubs)
-      .where(eq(clubs.id, id))
+      .where(
+        ownerUserId
+          ? and(eq(clubs.id, id), eq(clubs.ownerUserId, ownerUserId))
+          : eq(clubs.id, id),
+      )
       .limit(1);
     return rows[0] ? mapClub(rows[0]) : null;
   }
 
-  async list(query?: string): Promise<Club[]> {
-    const rows = await this.db.select().from(clubs).orderBy(sql`${clubs.name}`);
+  async list(ownerUserId: string, query?: string): Promise<Club[]> {
+    const rows = await this.db
+      .select()
+      .from(clubs)
+      .where(eq(clubs.ownerUserId, ownerUserId))
+      .orderBy(sql`${clubs.name}`);
     const mapped = rows.map(mapClub);
     const q = query?.trim();
     if (!q) {
@@ -79,17 +89,25 @@ export class DrizzleClubRepository {
     return this.findById(id);
   }
 
-  async findByNameExact(name: string): Promise<Club | null> {
+  async findByNameExact(
+    ownerUserId: string,
+    name: string,
+  ): Promise<Club | null> {
     const rows = await this.db
       .select()
       .from(clubs)
-      .where(sql`lower(${clubs.name}) = lower(${name.trim()})`)
+      .where(
+        and(
+          eq(clubs.ownerUserId, ownerUserId),
+          sql`lower(${clubs.name}) = lower(${name.trim()})`,
+        ),
+      )
       .limit(1);
     return rows[0] ? mapClub(rows[0]) : null;
   }
 
   async delete(id: string): Promise<boolean> {
     const result = await this.db.delete(clubs).where(eq(clubs.id, id));
-    return (result.changes ?? 0) > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 }

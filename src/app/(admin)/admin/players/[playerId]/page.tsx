@@ -5,10 +5,17 @@ import { ActionForm } from "@/components/shared/action-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { ClubService, PlayerService } from "@/application/services";
+import {
+  ClubService,
+  PlayerService,
+  SportService,
+} from "@/application/services";
 import { getDb } from "@/db/client";
 import { updatePlayerAction } from "@/features/participants/actions";
-import { requireRoleOrRedirect } from "@/lib/auth/require-auth";
+import {
+  getCurrentUser,
+  requireAuthOrRedirect,
+} from "@/lib/auth/require-auth";
 import { pageTitle } from "@/lib/page-title";
 
 export async function generateMetadata({
@@ -19,7 +26,14 @@ export async function generateMetadata({
   const { playerId } = await params;
   const t = await getTranslations("players");
   try {
-    const player = await new PlayerService(getDb()).getById(playerId);
+    const user = await getCurrentUser();
+    if (!user) {
+      return pageTitle(t("title"));
+    }
+    const player = await new PlayerService(getDb()).getById(
+      { userId: user.id, role: user.role },
+      playerId,
+    );
     return pageTitle(player.displayName);
   } catch {
     return pageTitle(t("title"));
@@ -33,20 +47,23 @@ export default async function PlayerDetailPage({
 }: {
   params: Promise<{ playerId: string }>;
 }) {
-  await requireRoleOrRedirect(["ADMIN", "OPERATOR", "SCOREKEEPER", "VIEWER"]);
+  const user = await requireAuthOrRedirect();
+  const actor = { userId: user.id, role: user.role };
   const { playerId } = await params;
   const t = await getTranslations("players");
   const tc = await getTranslations("common");
-  const te = await getTranslations("entries");
   const db = getDb();
 
   let player;
   try {
-    player = await new PlayerService(db).getById(playerId);
+    player = await new PlayerService(db).getById(actor, playerId);
   } catch {
     notFound();
   }
-  const clubs = await new ClubService(db).list();
+  const [clubs, sports] = await Promise.all([
+    new ClubService(db).list(actor),
+    new SportService(db).listActive(),
+  ]);
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
@@ -87,20 +104,47 @@ export default async function PlayerDetailPage({
             <option value="UNSPECIFIED">{tc("unspecified")}</option>
           </Select>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="clubId">{te("club")}</Label>
-          <Select
-            id="clubId"
-            name="clubId"
-            defaultValue={player.clubId ?? ""}
-          >
-            <option value="">{tc("none")}</option>
-            {clubs.map((club) => (
-              <option key={club.id} value={club.id}>
-                {club.name}
-              </option>
-            ))}
-          </Select>
+        <div className="space-y-3">
+          <Label>Môn thể thao</Label>
+          {sports.map((sport) => {
+            const profile = player.sports.find(
+              (item) => item.sportId === sport.id,
+            );
+            return (
+              <div
+                key={sport.id}
+                className="grid gap-3 rounded-md border border-slate-200 p-3 md:grid-cols-[auto_1fr_1fr]"
+              >
+                <label className="flex items-center gap-2 font-medium">
+                  <input
+                    type="checkbox"
+                    name="sportIds"
+                    value={sport.id}
+                    defaultChecked={Boolean(profile)}
+                  />
+                  {sport.name}
+                </label>
+                <Select
+                  name={`clubId:${sport.id}`}
+                  defaultValue={profile?.clubId ?? ""}
+                >
+                  <option value="">{tc("none")}</option>
+                  {clubs.map((club) => (
+                    <option key={club.id} value={club.id}>
+                      {club.name}
+                    </option>
+                  ))}
+                </Select>
+                <Input
+                  name={`ranking:${sport.id}`}
+                  type="number"
+                  min={1}
+                  defaultValue={profile?.ranking ?? ""}
+                  placeholder={tc("ranking")}
+                />
+              </div>
+            );
+          })}
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-1.5">
@@ -120,16 +164,6 @@ export default async function PlayerDetailPage({
               defaultValue={player.phone ?? ""}
             />
           </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="ranking">{tc("ranking")}</Label>
-          <Input
-            id="ranking"
-            name="ranking"
-            type="number"
-            min={1}
-            defaultValue={player.ranking ?? ""}
-          />
         </div>
       </ActionForm>
     </div>

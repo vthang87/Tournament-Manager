@@ -21,6 +21,7 @@ import { DrawBoard } from "@/features/draw/components/draw-board";
 import { DrawHistoryList } from "@/features/draw/components/draw-history-list";
 import { getDb } from "@/db/client";
 import { pageTitle } from "@/lib/page-title";
+import { requireAuthOrRedirect } from "@/lib/auth/require-auth";
 
 export async function generateMetadata({
   params,
@@ -49,6 +50,8 @@ export default async function DrawHistoryPage({
   searchParams: Promise<{ sessionId?: string }>;
 }) {
   const { tournamentId, eventId } = await params;
+  const user = await requireAuthOrRedirect();
+  const actor = { userId: user.id, role: user.role };
   const { sessionId } = await searchParams;
   const db = getDb();
   const t = await getTranslations("draw");
@@ -85,7 +88,10 @@ export default async function DrawHistoryPage({
   const entries = (await new EntryService(db).listByEvent(eventId)).filter(
     (e) => e.status === "ACTIVE",
   );
-  const clubs = await new ClubService(db).list();
+  const clubs = await new ClubService(db).listForTournament(
+    actor,
+    tournamentId,
+  );
   const clubById = new Map(clubs.map((c) => [c.id, c]));
 
   let capacityPerGroup = 4;

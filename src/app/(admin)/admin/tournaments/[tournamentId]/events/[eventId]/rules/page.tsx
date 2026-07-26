@@ -50,15 +50,22 @@ export default async function MatchRulesPage({
 }: {
   params: Promise<{ tournamentId: string; eventId: string }>;
 }) {
-  await requireRoleOrRedirect(["ADMIN"]);
+  await requireRoleOrRedirect([
+    "SUPER_ADMIN",
+    "ADMIN",
+    "OPERATOR",
+    "SCOREKEEPER",
+    "VIEWER",
+  ]);
   const { tournamentId, eventId } = await params;
   const db = getDb();
   const t = await getTranslations("rules");
   const tc = await getTranslations("common");
 
   let event;
+  let tournament;
   try {
-    await new TournamentService(db).getById(tournamentId);
+    tournament = await new TournamentService(db).getById(tournamentId);
     event = await new EventService(db).getById(eventId);
   } catch {
     notFound();
@@ -89,8 +96,8 @@ export default async function MatchRulesPage({
           eventId={eventId}
           hasStages={stageCount > 0}
           mode="rules"
-          templates={setup.listSetupTemplates()}
-          rulePresets={setup.listRulePresets()}
+          templates={setup.listSetupTemplates(tournament.sportId)}
+          rulePresets={setup.listRulePresets(tournament.sportId)}
         />
       ) : null}
 

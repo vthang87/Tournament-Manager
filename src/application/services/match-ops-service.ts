@@ -31,7 +31,6 @@ import { DrizzleTournamentEventRepository } from "@/db/repositories/tournament-e
 import { DrizzleTournamentRepository } from "@/db/repositories/tournament-repository";
 import { matchSets, matches } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit";
-import { assertCanPerform } from "@/lib/auth/policies";
 import { createId, nowIso } from "@/lib/id";
 import {
   cancelMatchSchema,
@@ -41,6 +40,7 @@ import {
   specialResolutionSchema,
 } from "@/lib/validation/schemas";
 import { and, eq } from "drizzle-orm";
+import { TournamentAccessService } from "./tournament-access-service";
 import type { BracketService } from "./bracket-service";
 
 function parseRuleSnapshot(json: string): MatchRuleSnapshot {
@@ -95,6 +95,7 @@ type FinishPayload = {
  * Winner is always derived by the scoring engine (client winner ignored).
  */
 export class MatchOpsService {
+  private readonly access: TournamentAccessService;
   private readonly matchesRepo: DrizzleMatchRepository;
   private readonly courts: DrizzleCourtRepository;
   private readonly events: DrizzleTournamentEventRepository;
@@ -102,6 +103,7 @@ export class MatchOpsService {
   private bracketService: BracketService | null = null;
 
   constructor(private readonly db: AppDatabase) {
+    this.access = new TournamentAccessService(db);
     this.matchesRepo = new DrizzleMatchRepository(db);
     this.courts = new DrizzleCourtRepository(db);
     this.events = new DrizzleTournamentEventRepository(db);
@@ -188,7 +190,7 @@ export class MatchOpsService {
     expectedUpdatedAt?: string,
     options?: { courtId?: string | null },
   ): Promise<MatchWithSets> {
-    assertCanPerform(actor.role, "score");
+    await this.access.assertForMatch(actor, matchId, "score");
     const before = await this.getById(matchId);
     await this.assertTournamentWritable(before.eventId);
     this.assertOptimisticConcurrency(before, expectedUpdatedAt);
@@ -282,7 +284,7 @@ export class MatchOpsService {
     expectedUpdatedAt?: string,
     options?: { courtId?: string },
   ): Promise<MatchWithSets> {
-    assertCanPerform(actor.role, "score");
+    await this.access.assertForMatch(actor, matchId, "score");
     const before = await this.getById(matchId);
     await this.assertTournamentWritable(before.eventId);
     this.assertOptimisticConcurrency(before, expectedUpdatedAt);
@@ -362,7 +364,7 @@ export class MatchOpsService {
     matchId: string,
     expectedUpdatedAt?: string,
   ): Promise<MatchWithSets> {
-    assertCanPerform(actor.role, "score");
+    await this.access.assertForMatch(actor, matchId, "score");
     const before = await this.getById(matchId);
     await this.assertTournamentWritable(before.eventId);
     this.assertOptimisticConcurrency(before, expectedUpdatedAt);
@@ -406,7 +408,7 @@ export class MatchOpsService {
     expectedUpdatedAt?: string,
     options?: { courtId?: string },
   ): Promise<MatchWithSets> {
-    assertCanPerform(actor.role, "score");
+    await this.access.assertForMatch(actor, matchId, "score");
     const before = await this.getById(matchId);
     await this.assertTournamentWritable(before.eventId);
     this.assertOptimisticConcurrency(before, expectedUpdatedAt);
@@ -483,8 +485,8 @@ export class MatchOpsService {
     actor: ActorContext,
     raw: unknown,
   ): Promise<MatchWithSets> {
-    assertCanPerform(actor.role, "score");
     const input = parseOrThrow(enterScoreSchema, raw);
+    await this.access.assertForMatch(actor, input.matchId, "score");
     const before = await this.getById(input.matchId);
     await this.assertTournamentWritable(before.eventId);
     this.assertOptimisticConcurrency(before, input.expectedUpdatedAt);
@@ -524,8 +526,8 @@ export class MatchOpsService {
     actor: ActorContext,
     raw: unknown,
   ): Promise<MatchWithSets> {
-    assertCanPerform(actor.role, "score");
     const input = parseOrThrow(enterScoreSchema, raw);
+    await this.access.assertForMatch(actor, input.matchId, "score");
     const before = await this.getById(input.matchId);
     await this.assertTournamentWritable(before.eventId);
     this.assertOptimisticConcurrency(before, input.expectedUpdatedAt);
@@ -652,8 +654,8 @@ export class MatchOpsService {
     actor: ActorContext,
     raw: unknown,
   ): Promise<MatchWithSets> {
-    assertCanPerform(actor.role, "score");
     const input = parseOrThrow(specialResolutionSchema, raw);
+    await this.access.assertForMatch(actor, input.matchId, "score");
     const before = await this.getById(input.matchId);
     await this.assertTournamentWritable(before.eventId);
     this.assertOptimisticConcurrency(before, input.expectedUpdatedAt);
@@ -730,8 +732,8 @@ export class MatchOpsService {
     actor: ActorContext,
     raw: unknown,
   ): Promise<MatchWithSets> {
-    assertCanPerform(actor.role, "score");
     const input = parseOrThrow(cancelMatchSchema, raw);
+    await this.access.assertForMatch(actor, input.matchId, "score");
     const before = await this.getById(input.matchId);
     await this.assertTournamentWritable(before.eventId);
     this.assertOptimisticConcurrency(before, input.expectedUpdatedAt);
@@ -787,8 +789,8 @@ export class MatchOpsService {
     actor: ActorContext,
     raw: unknown,
   ): Promise<MatchWithSets> {
-    assertCanPerform(actor.role, "correct");
     const input = parseOrThrow(correctScoreSchema, raw);
+    await this.access.assertForMatch(actor, input.matchId, "correct");
     const before = await this.getById(input.matchId);
     await this.assertTournamentWritable(before.eventId);
     this.assertOptimisticConcurrency(before, input.expectedUpdatedAt);

@@ -8,6 +8,7 @@ import {
   EventService,
   StageService,
   TournamentService,
+  TournamentAccessService,
 } from "@/application/services";
 import { getDb } from "@/db/client";
 import { DrizzleDrawRepository } from "@/db/repositories/draw-repository";
@@ -103,8 +104,15 @@ export default async function BracketPage({
   }
 
   const user = await getCurrentUser();
-  const canDraw = user ? canPerform(user.role, "draw") : false;
-  const canAdminReset = user ? canPerform(user.role, "setup") : false;
+  if (!user) {
+    notFound();
+  }
+  const access = await new TournamentAccessService(db).resolve(
+    { userId: user.id, role: user.role },
+    tournamentId,
+  );
+  const canDraw = canPerform(access.role, "draw");
+  const canAdminReset = canPerform(access.role, "setup");
 
   if (sourceStage && targetStage && user && canDraw) {
     const rule = await bracketService.getQualificationRule(

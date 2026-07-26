@@ -1,4 +1,5 @@
 import {
+  index,
   integer,
   pgTable,
   primaryKey,
@@ -6,18 +7,32 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { tournamentEvents } from "./tournaments";
+import { users } from "./identity";
+import { sports } from "./sports";
 
-export const clubs = pgTable("clubs", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  shortName: text("short_name"),
-  logoUrl: text("logo_url"),
-  createdAt: text("created_at").notNull(),
-  updatedAt: text("updated_at").notNull(),
-});
+export const clubs = pgTable(
+  "clubs",
+  {
+    id: text("id").primaryKey(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    shortName: text("short_name"),
+    logoUrl: text("logo_url"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    index("clubs_owner_name_idx").on(table.ownerUserId, table.name),
+  ],
+);
 
 export const players = pgTable("players", {
   id: text("id").primaryKey(),
+  ownerUserId: text("owner_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "restrict" }),
   name: text("name").notNull(),
   displayName: text("display_name").notNull(),
   gender: text("gender", {
@@ -28,12 +43,33 @@ export const players = pgTable("players", {
   dateOfBirth: text("date_of_birth"),
   phone: text("phone"),
   email: text("email"),
-  clubId: text("club_id").references(() => clubs.id, { onDelete: "set null" }),
-  ranking: integer("ranking"),
   metadataJson: text("metadata_json"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
+
+export const playerSports = pgTable(
+  "player_sports",
+  {
+    playerId: text("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    sportId: text("sport_id")
+      .notNull()
+      .references(() => sports.id, { onDelete: "restrict" }),
+    clubId: text("club_id").references(() => clubs.id, { onDelete: "set null" }),
+    ranking: integer("ranking"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.playerId, table.sportId] }),
+    uniqueIndex("player_sports_player_sport_uidx").on(
+      table.playerId,
+      table.sportId,
+    ),
+  ],
+);
 
 export const entries = pgTable("entries", {
   id: text("id").primaryKey(),

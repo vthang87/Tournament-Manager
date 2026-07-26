@@ -6,6 +6,7 @@ import {
   EventService,
   StageService,
   TournamentService,
+  TournamentAccessService,
 } from "@/application/services";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -143,7 +144,14 @@ export default async function EventMatchesPage({
   ].sort((a, b) => a - b);
 
   const user = await getCurrentUser();
-  const canDraw = user ? canPerform(user.role, "draw") : false;
+  if (!user) {
+    notFound();
+  }
+  const access = await new TournamentAccessService(db).resolve(
+    { userId: user.id, role: user.role },
+    tournamentId,
+  );
+  const canDraw = canPerform(access.role, "draw");
   const canGenerate =
     canDraw &&
     (event.status === "DRAW_CONFIRMED" || event.status === "IN_PROGRESS");
