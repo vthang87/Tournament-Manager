@@ -92,7 +92,7 @@ export async function AdminBreadcrumbs({
             </Link>
           </li>
         ))}
-        <li className="flex min-w-0 items-center gap-1">
+        <li className="hidden min-w-0 items-center gap-1 sm:flex">
           <ChevronRight aria-hidden="true" className="size-3.5 shrink-0" />
           <span
             className="block max-w-80 truncate font-medium text-slate-800"

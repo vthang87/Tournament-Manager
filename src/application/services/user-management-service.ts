@@ -1,4 +1,4 @@
-import { asc, eq, ilike, or } from "drizzle-orm";
+import { asc, count, eq, ilike, or } from "drizzle-orm";
 import {
   ConflictError,
   ForbiddenError,
@@ -67,6 +67,61 @@ export class UserManagementService {
           .orderBy(asc(users.username))
       : await this.db.select().from(users).orderBy(asc(users.username));
     return rows.map(toView);
+  }
+
+  async listPage(
+    actor: ActorContext,
+    {
+      query,
+      page = 1,
+      pageSize = 20,
+    }: {
+      query?: string;
+      page?: number;
+      pageSize?: number;
+    },
+  ) {
+    this.assertSuperAdmin(actor);
+    const term = query?.trim();
+    const condition = term
+      ? or(
+          ilike(users.username, `%${term}%`),
+          ilike(users.displayName, `%${term}%`),
+        )
+      : undefined;
+    const safePageSize = Math.max(1, Math.min(pageSize, 100));
+    const totals = condition
+      ? await this.db
+          .select({ value: count() })
+          .from(users)
+          .where(condition)
+      : await this.db.select({ value: count() }).from(users);
+    const total = Number(totals[0]?.value ?? 0);
+    const totalPages = Math.max(1, Math.ceil(total / safePageSize));
+    const safePage = Math.min(Math.max(1, page), totalPages);
+    const offset = (safePage - 1) * safePageSize;
+    const rows = condition
+      ? await this.db
+          .select()
+          .from(users)
+          .where(condition)
+          .orderBy(asc(users.username))
+          .limit(safePageSize)
+          .offset(offset)
+      : await this.db
+          .select()
+          .from(users)
+          .orderBy(asc(users.username))
+          .limit(safePageSize)
+          .offset(offset);
+
+    return {
+      items: rows.map(toView),
+      total,
+      page: safePage,
+      pageSize: safePageSize,
+      totalPages,
+    };
   }
 
   async getById(actor: ActorContext, id: string): Promise<ManagedUserView> {

@@ -100,7 +100,42 @@ export default async function MatchRulesPage({
         />
       ) : null}
 
-      <div className="rounded-lg border border-slate-200 bg-white">
+      <div className="grid gap-3 sm:hidden">
+        {rules.map((rule) => (
+          <article
+            key={rule.id}
+            className="rounded-lg border border-slate-200 bg-white p-3"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="font-semibold text-slate-900">{rule.name}</h3>
+              {event.defaultMatchRuleId === rule.id ? (
+                <span className="shrink-0 text-xs font-medium text-emerald-700">
+                  {t("defaultBadge")}
+                </span>
+              ) : null}
+            </div>
+            <dl className="mt-3 grid grid-cols-4 gap-2 border-t border-slate-100 pt-3 text-center">
+              {[
+                [t("bestOf"), rule.bestOfSets],
+                [t("points"), rule.pointsToWin],
+                [t("winBy"), rule.winBy],
+                [t("max"), rule.maxPoints],
+              ].map(([label, value]) => (
+                <div key={String(label)}>
+                  <dt className="text-[10px] uppercase tracking-wide text-slate-500">
+                    {label}
+                  </dt>
+                  <dd className="mt-0.5 font-semibold tabular-nums text-slate-900">
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </article>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white sm:block">
         <Table>
           <TableHeader>
             <TableRow>

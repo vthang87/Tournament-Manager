@@ -85,7 +85,78 @@ export default async function CourtLivePage({
         </p>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <div className="grid gap-3 sm:hidden">
+        {courts.map((court) => (
+          <article
+            key={court.courtId}
+            className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
+          >
+            <h2 className="font-semibold text-slate-900">
+              {court.courtName}{" "}
+              <span className="font-normal text-slate-500">
+                ({court.courtCode})
+              </span>
+            </h2>
+
+            <div className="mt-3 border-t border-slate-100 pt-3">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                {t("nowPlaying")}
+              </p>
+              {court.nowPlaying ? (
+                <div className="mt-1">
+                  <Link
+                    href={`/admin/tournaments/${tournamentId}/events/${court.nowPlaying.eventId}/matches/${court.nowPlaying.matchId}`}
+                    className="font-medium leading-snug underline-offset-2 hover:underline"
+                  >
+                    {court.nowPlaying.entryAName ?? tc("tbd")} {tc("vs")}{" "}
+                    {court.nowPlaying.entryBName ?? tc("tbd")}
+                  </Link>
+                  <p className="mt-1 font-semibold tabular-nums text-slate-800">
+                    {court.nowPlaying.scoreSummary || tc("dash")}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {court.nowPlaying.eventName} ·{" "}
+                    {tStatus(matchStatusKey(court.nowPlaying.status))}
+                  </p>
+                  <MatchElapsedClock
+                    startedAt={court.nowPlaying.startedAt}
+                    compact
+                    className="mt-1 text-xs"
+                  />
+                </div>
+              ) : (
+                <p className="mt-1 text-sm text-slate-500">{t("idle")}</p>
+              )}
+            </div>
+
+            <div className="mt-3 border-t border-slate-100 pt-3">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                {t("next")}
+              </p>
+              {court.next ? (
+                <div className="mt-1">
+                  <Link
+                    href={`/admin/tournaments/${tournamentId}/events/${court.next.eventId}/matches/${court.next.matchId}`}
+                    className="font-medium leading-snug underline-offset-2 hover:underline"
+                  >
+                    {court.next.entryAName ?? tc("tbd")} {tc("vs")}{" "}
+                    {court.next.entryBName ?? tc("tbd")}
+                  </Link>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {court.next.scheduledAt
+                      ? new Date(court.next.scheduledAt).toLocaleString()
+                      : tStatus(matchStatusKey(court.next.status))}
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-1 text-sm text-slate-500">{tc("dash")}</p>
+              )}
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white sm:block">
         <Table>
           <TableHeader>
             <TableRow>

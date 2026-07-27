@@ -87,33 +87,42 @@ export function EditableCourtRow({
   }
 
   return (
-    <TableRow>
-      <TableCell className="w-44 align-top">
+    <TableRow className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-4 gap-y-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm hover:bg-white sm:table-row sm:rounded-none sm:border-x-0 sm:border-t-0 sm:p-0 sm:shadow-none sm:hover:bg-slate-50/80">
+      <TableCell className="block min-w-0 p-0 align-top sm:table-cell sm:w-44 sm:p-3">
+        <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-500 sm:hidden">
+          {tc("name")}
+        </p>
         {editing ? (
           <Input
             value={name}
             onChange={(event) => setName(event.target.value)}
-            className="h-8 min-w-36"
+            className="h-8 min-w-0"
             aria-label={tc("name")}
             autoFocus
           />
         ) : (
-          court.name
+          <span className="font-medium text-slate-900">{court.name}</span>
         )}
       </TableCell>
-      <TableCell className="w-28 align-top">
+      <TableCell className="block p-0 align-top sm:table-cell sm:w-28 sm:p-3">
+        <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-500 sm:hidden">
+          {tc("code")}
+        </p>
         {editing ? (
           <Input
             value={code}
             onChange={(event) => setCode(event.target.value)}
-            className="h-8 min-w-20 font-mono"
+            className="h-8 w-20 min-w-0 font-mono"
             aria-label={tc("code")}
           />
         ) : (
-          court.code
+          <span className="font-mono text-sm">{court.code}</span>
         )}
       </TableCell>
-      <TableCell className="align-top">
+      <TableCell className="block p-0 text-right align-top sm:table-cell sm:p-3 sm:text-left">
+        <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-500 sm:hidden">
+          {tc("active")}
+        </p>
         {editing ? (
           <select
             value={active ? "true" : "false"}
@@ -130,7 +139,7 @@ export function EditableCourtRow({
           tc("no")
         )}
       </TableCell>
-      <TableCell className="align-top">
+      <TableCell className="col-span-3 block border-t border-slate-100 p-0 pt-3 align-top sm:table-cell sm:border-0 sm:p-3">
         <CourtPinControls
           tournamentId={tournamentId}
           courtId={court.id}
@@ -142,8 +151,8 @@ export function EditableCourtRow({
         />
       </TableCell>
       {canSetup ? (
-        <TableCell className="w-36 align-top text-right">
-          <div className="flex justify-end gap-2">
+        <TableCell className="col-span-3 block p-0 align-top text-right sm:table-cell sm:w-36 sm:p-3">
+          <div className="flex justify-start gap-2 sm:justify-end">
             {editing ? (
               <>
                 <Button

@@ -114,9 +114,9 @@ export default async function CourtsPage({
         </ActionForm>
       ) : null}
 
-      <div className="rounded-lg border border-slate-200 bg-white">
-        <Table>
-          <TableHeader>
+      <div className="rounded-lg sm:border sm:border-slate-200 sm:bg-white">
+        <Table className="block overflow-visible sm:table">
+          <TableHeader className="hidden sm:table-header-group">
             <TableRow>
               <TableHead>{tc("name")}</TableHead>
               <TableHead>{tc("code")}</TableHead>
@@ -125,7 +125,7 @@ export default async function CourtsPage({
               {canSetup ? <TableHead /> : null}
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody className="block space-y-3 sm:table-row-group sm:space-y-0">
             {courts.map((court) => (
               <EditableCourtRow
                 key={court.id}

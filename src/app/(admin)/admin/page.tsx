@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import {
   Card,
   CardContent,
@@ -37,6 +37,7 @@ export default async function AdminDashboardPage() {
   const tt = await getTranslations("tournaments");
   const tc = await getTranslations("common");
   const tStatus = await getTranslations("status");
+  const locale = await getLocale();
   const user = await requireAuthOrRedirect();
   const summaries = await new DashboardService(getDb()).summarizeAll({
     userId: user.id,
@@ -61,7 +62,7 @@ export default async function AdminDashboardPage() {
         <div className="space-y-6">
           {summaries.map((s) => (
             <Card key={s.tournamentId}>
-              <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+              <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 p-4 sm:p-6">
                 <div>
                   <CardTitle>{s.name}</CardTitle>
                   <CardDescription>
@@ -95,45 +96,45 @@ export default async function AdminDashboardPage() {
                   </Link>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <CardContent className="space-y-4 px-4 pb-4 pt-0 sm:px-6 sm:pb-6">
+                <dl className="grid grid-cols-3 gap-x-2 gap-y-3 lg:grid-cols-5">
                   <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-500">
+                    <dt className="text-[11px] uppercase leading-tight tracking-wide text-slate-500 sm:text-xs">
                       {t("entries")}
                     </dt>
-                    <dd className="text-2xl font-semibold tabular-nums">
+                    <dd className="text-xl font-semibold tabular-nums sm:text-2xl">
                       {s.entryCount}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-500">
+                    <dt className="text-[11px] uppercase leading-tight tracking-wide text-slate-500 sm:text-xs">
                       {t("completed")}
                     </dt>
-                    <dd className="text-2xl font-semibold tabular-nums text-emerald-800">
+                    <dd className="text-xl font-semibold tabular-nums text-emerald-800 sm:text-2xl">
                       {s.matchesCompleted}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-500">
+                    <dt className="text-[11px] uppercase leading-tight tracking-wide text-slate-500 sm:text-xs">
                       {t("pending")}
                     </dt>
-                    <dd className="text-2xl font-semibold tabular-nums">
+                    <dd className="text-xl font-semibold tabular-nums sm:text-2xl">
                       {s.matchesPending}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-500">
+                    <dt className="text-[11px] uppercase leading-tight tracking-wide text-slate-500 sm:text-xs">
                       {t("inProgress")}
                     </dt>
-                    <dd className="text-2xl font-semibold tabular-nums text-amber-800">
+                    <dd className="text-xl font-semibold tabular-nums text-amber-800 sm:text-2xl">
                       {s.matchesInProgress}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-500">
+                    <dt className="text-[11px] uppercase leading-tight tracking-wide text-slate-500 sm:text-xs">
                       {t("courts")}
                     </dt>
-                    <dd className="text-2xl font-semibold tabular-nums">
+                    <dd className="text-xl font-semibold tabular-nums sm:text-2xl">
                       {s.courtCount}
                     </dd>
                   </div>
@@ -164,39 +165,81 @@ export default async function AdminDashboardPage() {
                   {s.upcoming.length === 0 ? (
                     <p className="mt-1 text-sm text-slate-600">{t("noneScheduled")}</p>
                   ) : (
-                    <div className="mt-2 overflow-x-auto rounded-md border border-slate-200">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead scope="col">{tc("when")}</TableHead>
-                            <TableHead scope="col">{tc("event")}</TableHead>
-                            <TableHead scope="col">{tc("match")}</TableHead>
-                            <TableHead scope="col">{tc("court")}</TableHead>
-                            <TableHead scope="col">{tc("status")}</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {s.upcoming.map((m) => (
-                            <TableRow key={m.matchId}>
-                              <TableCell className="whitespace-nowrap text-sm">
+                    <>
+                      <div className="mt-2 divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 sm:hidden">
+                        {s.upcoming.map((m) => (
+                          <article key={m.matchId} className="space-y-2 p-3">
+                            <p className="text-xs font-medium text-slate-500">
+                              {m.eventName}
+                            </p>
+                            <p className="text-sm font-semibold leading-snug text-slate-900">
+                              {m.entryAName ?? tc("tbd")} {tc("vs")}{" "}
+                              {m.entryBName ?? tc("tbd")}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+                              <time
+                                dateTime={m.scheduledAt ?? undefined}
+                                className="tabular-nums"
+                              >
                                 {m.scheduledAt
-                                  ? new Date(m.scheduledAt).toLocaleString()
+                                  ? new Date(m.scheduledAt).toLocaleString(
+                                      locale,
+                                      {
+                                        dateStyle: "short",
+                                        timeStyle: "short",
+                                      },
+                                    )
                                   : tc("dash")}
-                              </TableCell>
-                              <TableCell>{m.eventName}</TableCell>
-                              <TableCell>
-                                {m.entryAName ?? tc("tbd")} {tc("vs")}{" "}
-                                {m.entryBName ?? tc("tbd")}
-                              </TableCell>
-                              <TableCell>{m.courtCode ?? tc("dash")}</TableCell>
-                              <TableCell>
+                              </time>
+                              <span>
+                                {tc("court")}: {m.courtCode ?? tc("dash")}
+                              </span>
+                              <span className="font-medium text-slate-800">
                                 {tStatus(matchStatusKey(m.status))}
-                              </TableCell>
+                              </span>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+
+                      <div className="mt-2 hidden overflow-x-auto rounded-md border border-slate-200 sm:block">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead scope="col">{tc("when")}</TableHead>
+                              <TableHead scope="col">{tc("event")}</TableHead>
+                              <TableHead scope="col">{tc("match")}</TableHead>
+                              <TableHead scope="col">{tc("court")}</TableHead>
+                              <TableHead scope="col">{tc("status")}</TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
+                          </TableHeader>
+                          <TableBody>
+                            {s.upcoming.map((m) => (
+                              <TableRow key={m.matchId}>
+                                <TableCell className="whitespace-nowrap text-sm">
+                                  {m.scheduledAt
+                                    ? new Date(m.scheduledAt).toLocaleString(
+                                        locale,
+                                      )
+                                    : tc("dash")}
+                                </TableCell>
+                                <TableCell>{m.eventName}</TableCell>
+                                <TableCell>
+                                  {m.entryAName ?? tc("tbd")} {tc("vs")}{" "}
+                                  {m.entryBName ?? tc("tbd")}
+                                </TableCell>
+                                <TableCell>
+                                  {m.courtCode ?? tc("dash")}
+                                </TableCell>
+                                <TableCell>
+                                  {tStatus(matchStatusKey(m.status))}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </>
                   )}
                 </div>
               </CardContent>

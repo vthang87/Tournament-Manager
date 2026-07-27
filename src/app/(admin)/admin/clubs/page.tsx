@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Search } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import {
   Table,
@@ -68,9 +69,11 @@ export default async function ClubsPage({
         />
         <button
           type="submit"
-          className="h-10 rounded-md border border-slate-200 bg-white px-4 text-sm hover:bg-slate-50"
+          aria-label={tc("search")}
+          className="inline-flex size-10 shrink-0 touch-manipulation items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 sm:w-auto sm:px-4 sm:text-sm"
         >
-          {tc("search")}
+          <Search className="size-4 sm:hidden" aria-hidden="true" />
+          <span className="hidden sm:inline">{tc("search")}</span>
         </button>
       </form>
 

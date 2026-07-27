@@ -174,7 +174,114 @@ export default async function EntriesPage({
         </Link>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white">
+      <div className="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white sm:hidden">
+        {filtered.map((entry) => (
+          <article key={entry.id} className="space-y-3 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <Link
+                  href={`/admin/tournaments/${tournamentId}/events/${eventId}/entries/${entry.id}`}
+                  className="font-semibold text-slate-900 underline-offset-2 hover:underline"
+                >
+                  {entry.displayName}
+                </Link>
+                <p className="mt-1 text-sm leading-snug text-slate-600">
+                  {entry.members
+                    .map((m) => playerName.get(m.playerId) ?? m.playerId)
+                    .join(" / ")}
+                </p>
+              </div>
+              {entry.seed != null ? (
+                <span className="shrink-0 rounded bg-slate-900 px-1.5 py-0.5 text-xs font-semibold text-white">
+                  #{entry.seed}
+                </span>
+              ) : null}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+              <span>
+                {t("ranking")}:{" "}
+                <strong className="font-medium text-slate-800">
+                  {entry.ranking ?? tc("dash")}
+                </strong>
+              </span>
+              <span className="font-medium uppercase tracking-wide text-slate-700">
+                {entry.status}
+              </span>
+            </div>
+
+            {canImport && entry.status === "ACTIVE" ? (
+              <div
+                className={`grid gap-2 border-t border-slate-100 pt-3 ${
+                  event.status === "SETUP" ? "grid-cols-3" : "grid-cols-2"
+                }`}
+              >
+                <form
+                  action={async () => {
+                    "use server";
+                    await withdrawEntryAction(
+                      tournamentId,
+                      eventId,
+                      entry.id,
+                    );
+                  }}
+                >
+                  <Button
+                    type="submit"
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                  >
+                    {t("withdraw")}
+                  </Button>
+                </form>
+                <form
+                  action={async () => {
+                    "use server";
+                    await disqualifyEntryAction(
+                      tournamentId,
+                      eventId,
+                      entry.id,
+                    );
+                  }}
+                >
+                  <Button
+                    type="submit"
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                  >
+                    {t("disqualify")}
+                  </Button>
+                </form>
+                {event.status === "SETUP" ? (
+                  <form
+                    action={async () => {
+                      "use server";
+                      await deleteEntryAction(
+                        tournamentId,
+                        eventId,
+                        entry.id,
+                      );
+                    }}
+                  >
+                    <Button
+                      type="submit"
+                      size="sm"
+                      variant="outline"
+                      className="w-full"
+                    >
+                      {tc("delete")}
+                    </Button>
+                  </form>
+                ) : null}
+              </div>
+            ) : null}
+          </article>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white sm:block">
         <Table>
           <TableHeader>
             <TableRow>
