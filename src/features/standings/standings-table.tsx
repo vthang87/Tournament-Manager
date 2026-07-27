@@ -40,7 +40,88 @@ export function StandingsTable({
   }
 
   return (
-    <Table>
+    <>
+      <div className="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white sm:hidden">
+        {rows.map((row) => {
+          const open = expanded === row.entryId;
+          return (
+            <article
+              key={row.entryId}
+              className={cn(
+                "p-3",
+                row.rank === 1
+                  ? "bg-amber-50/80"
+                  : row.rank === 2
+                    ? "bg-sky-50/80"
+                    : row.drawRequired && "bg-amber-50/60",
+              )}
+            >
+              <div className="flex items-start gap-3">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-white font-semibold tabular-nums text-slate-900 shadow-sm">
+                  {row.rank}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold leading-snug text-slate-900">
+                    {labelOf(row.entryId)}
+                  </p>
+                  {row.drawRequired ? (
+                    <p className="mt-0.5 text-xs text-amber-800">
+                      {t("drawRequiredBadge")}
+                    </p>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  className="shrink-0 text-xs font-medium text-slate-600 underline"
+                  onClick={() => setExpanded(open ? null : row.entryId)}
+                >
+                  {open ? tCommon("hide") : tCommon("tieBreak")}
+                </button>
+              </div>
+
+              <dl className="mt-3 grid grid-cols-5 gap-1 border-t border-slate-200/70 pt-2 text-center">
+                {[
+                  [tCommon("played"), row.played],
+                  [tCommon("wins"), row.wins],
+                  [tCommon("losses"), row.losses],
+                  [
+                    tCommon("setDiff"),
+                    `${row.setDifference > 0 ? "+" : ""}${row.setDifference}`,
+                  ],
+                  [
+                    tCommon("pointDiff"),
+                    `${row.pointDifference > 0 ? "+" : ""}${row.pointDifference}`,
+                  ],
+                ].map(([label, value]) => (
+                  <div key={String(label)}>
+                    <dt className="truncate text-[10px] uppercase tracking-wide text-slate-500">
+                      {label}
+                    </dt>
+                    <dd className="mt-0.5 font-medium tabular-nums text-slate-900">
+                      {value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+
+              {open ? (
+                <div className="mt-3 border-t border-slate-200/70 pt-3">
+                  <TieBreakTrace
+                    row={row}
+                    labelOf={labelOf}
+                    criterionLabel={criterionLabel}
+                    t={t}
+                    tCommon={tCommon}
+                  />
+                </div>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="hidden overflow-x-auto sm:block">
+        <Table>
       <TableHeader>
         <TableRow>
           <TableHead className="w-12">{tCommon("rank")}</TableHead>
@@ -124,7 +205,9 @@ export function StandingsTable({
           );
         })}
       </TableBody>
-    </Table>
+        </Table>
+      </div>
+    </>
   );
 }
 

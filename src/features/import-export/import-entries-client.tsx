@@ -252,7 +252,29 @@ export function ImportEntriesClient({
 
           <div>
             <h3 className="text-lg font-medium">{t("validPreview")}</h3>
-            <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+            <div className="mt-2 divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white sm:hidden">
+              {preview.validRows.map((row, idx) => (
+                <article
+                  key={idx}
+                  className="flex items-start justify-between gap-3 p-3"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium text-slate-900">
+                      {row.displayName}
+                    </p>
+                    <p className="mt-0.5 truncate text-sm text-slate-500">
+                      {"clubName" in row
+                        ? (row.clubName ?? tCommon("dash"))
+                        : tCommon("dash")}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded bg-slate-100 px-2 py-1 text-xs font-medium tabular-nums text-slate-700">
+                    {tEntries("seed")}: {row.seed ?? tCommon("dash")}
+                  </span>
+                </article>
+              ))}
+            </div>
+            <div className="mt-2 hidden overflow-x-auto rounded-lg border border-slate-200 bg-white sm:block">
               <Table>
                 <TableHeader>
                   <TableRow>

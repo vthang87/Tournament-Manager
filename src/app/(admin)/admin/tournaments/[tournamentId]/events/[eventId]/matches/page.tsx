@@ -275,7 +275,78 @@ export default async function EventMatchesPage({
           {t("noFilterMatch")}
         </p>
       ) : (
-        <div className="rounded-lg border border-slate-200 bg-white">
+        <>
+          <div className="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white sm:hidden">
+            {filtered.map((match) => {
+              const sets = setsByMatch.get(match.id) ?? [];
+              const labelA = entryLabel(match.entryAId, labels);
+              const labelB = entryLabel(match.entryBId, labels);
+              return (
+                <article key={match.id} className="space-y-3 p-3">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                    <span>
+                      {tc("round")}{" "}
+                      <span className="font-medium tabular-nums text-slate-800">
+                        {match.roundNumber}
+                      </span>
+                    </span>
+                    <span>
+                      {t("filterGroup")}{" "}
+                      <span className="font-medium text-slate-800">
+                        {match.groupId
+                          ? (groupName.get(match.groupId) ?? tc("dash"))
+                          : tc("dash")}
+                      </span>
+                    </span>
+                    <span className="font-medium uppercase tracking-wide text-slate-700">
+                      {tStatus(matchStatusKey(match.status))}
+                    </span>
+                  </div>
+
+                  <div className="text-sm leading-snug text-slate-900">
+                    <MatchupLink
+                      href={`${basePath}/matches/${match.id}`}
+                      labelA={labelA}
+                      labelB={labelB}
+                      entryAId={match.entryAId}
+                      entryBId={match.entryBId}
+                      winnerEntryId={match.winnerEntryId}
+                      vsLabel={tc("vs")}
+                    />
+                  </div>
+
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 border-t border-slate-100 pt-2 text-xs">
+                    <dt className="text-slate-500">{tc("score")}</dt>
+                    <dd className="font-semibold tabular-nums text-slate-900">
+                      {scoreLine(sets)}
+                    </dd>
+                    <dt className="text-slate-500">{t("colStarted")}</dt>
+                    <dd className="tabular-nums text-slate-700">
+                      {match.startedAt
+                        ? formatTournamentDateTime(
+                            match.startedAt,
+                            tournament.timezone,
+                          )
+                        : tc("dash")}
+                    </dd>
+                    {match.completedAt ? (
+                      <>
+                        <dt className="text-slate-500">{t("colEnded")}</dt>
+                        <dd className="tabular-nums text-slate-700">
+                          {formatTournamentDateTime(
+                            match.completedAt,
+                            tournament.timezone,
+                          )}
+                        </dd>
+                      </>
+                    ) : null}
+                  </dl>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white sm:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -343,7 +414,8 @@ export default async function EventMatchesPage({
               })}
             </TableBody>
           </Table>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

@@ -108,14 +108,14 @@ export function LiveBoardRealtime({
                       {m.eventName}
                     </span>
                   </p>
-                  <p className="mt-1 truncate text-2xl font-semibold">
+                  <p className="mt-1 line-clamp-2 text-2xl font-semibold leading-tight md:line-clamp-1">
                     {m.entryAName ?? tc("tbd")}
                   </p>
                   {m.entryAClub ? (
                     <p className="text-sm text-slate-400">{m.entryAClub}</p>
                   ) : null}
                   <p className="my-0.5 text-sm text-slate-500">{tc("vs")}</p>
-                  <p className="truncate text-2xl font-semibold">
+                  <p className="line-clamp-2 text-2xl font-semibold leading-tight md:line-clamp-1">
                     {m.entryBName ?? tc("tbd")}
                   </p>
                   {m.entryBClub ? (
@@ -166,7 +166,7 @@ export function LiveBoardRealtime({
                 </p>
                 <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-3 text-xl">
                   <div className="min-w-0 text-left">
-                    <p className="truncate font-medium">
+                    <p className="line-clamp-2 min-h-[2.5em] font-medium leading-tight md:line-clamp-1 md:min-h-0">
                       {m.entryAName ?? tc("tbd")}
                     </p>
                     {m.entryAClub ? (
@@ -179,7 +179,7 @@ export function LiveBoardRealtime({
                     {tc("vs")}
                   </p>
                   <div className="min-w-0 text-right">
-                    <p className="truncate font-medium">
+                    <p className="line-clamp-2 min-h-[2.5em] font-medium leading-tight md:line-clamp-1 md:min-h-0">
                       {m.entryBName ?? tc("tbd")}
                     </p>
                     {m.entryBClub ? (
@@ -249,7 +249,7 @@ export function LiveBoardRealtime({
                     <div className="min-w-0 text-left">
                       <p
                         className={cn(
-                          "truncate font-medium",
+                          "line-clamp-2 min-h-[2.5em] font-medium leading-tight md:line-clamp-1 md:min-h-0",
                           matchSideClass(m.entryAId, m.winnerEntryId, "dark"),
                         )}
                       >
@@ -280,7 +280,7 @@ export function LiveBoardRealtime({
                     <div className="min-w-0 text-right">
                       <p
                         className={cn(
-                          "truncate font-medium",
+                          "line-clamp-2 min-h-[2.5em] font-medium leading-tight md:line-clamp-1 md:min-h-0",
                           matchSideClass(m.entryBId, m.winnerEntryId, "dark"),
                         )}
                       >

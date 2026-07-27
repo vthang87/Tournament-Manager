@@ -170,7 +170,7 @@ function SideRow({
       <div className="min-w-0">
         <p
           className={cn(
-            "truncate text-xl font-semibold leading-snug tracking-tight md:text-2xl",
+            "line-clamp-2 text-xl font-semibold leading-snug tracking-tight md:line-clamp-1 md:text-2xl",
             leading ? "text-white" : "text-slate-300",
           )}
           title={name}

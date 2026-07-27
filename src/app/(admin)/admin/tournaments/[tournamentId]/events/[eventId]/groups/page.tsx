@@ -245,7 +245,45 @@ export default async function EventGroupsPage({
                         {t("noFixturesGroup")}
                       </p>
                     ) : (
-                      <Table>
+                      <>
+                        <div className="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 sm:hidden">
+                          {block.fixtures.map((match) => {
+                            const sets =
+                              block.setsByMatch.get(match.id) ?? [];
+                            return (
+                              <article key={match.id} className="space-y-2 p-3">
+                                <div className="flex items-center justify-between gap-3 text-xs">
+                                  <span className="text-slate-500">
+                                    {tc("round")}{" "}
+                                    <strong className="font-medium tabular-nums text-slate-800">
+                                      {match.roundNumber}
+                                    </strong>
+                                  </span>
+                                  <span className="font-medium uppercase tracking-wide text-slate-600">
+                                    {tStatus(matchStatusKey(match.status))}
+                                  </span>
+                                </div>
+                                <div className="text-sm leading-snug">
+                                  <MatchupLink
+                                    href={`${basePath}/matches/${match.id}`}
+                                    labelA={entryLabel(match.entryAId, labels)}
+                                    labelB={entryLabel(match.entryBId, labels)}
+                                    entryAId={match.entryAId}
+                                    entryBId={match.entryBId}
+                                    winnerEntryId={match.winnerEntryId}
+                                    vsLabel={tc("vs")}
+                                  />
+                                </div>
+                                <p className="border-t border-slate-100 pt-2 text-sm font-semibold tabular-nums text-slate-800">
+                                  {tc("score")}: {scoreLine(sets)}
+                                </p>
+                              </article>
+                            );
+                          })}
+                        </div>
+
+                        <div className="hidden overflow-x-auto sm:block">
+                          <Table>
                         <TableHeader>
                           <TableRow>
                             <TableHead>{tc("round")}</TableHead>
@@ -286,7 +324,9 @@ export default async function EventGroupsPage({
                             );
                           })}
                         </TableBody>
-                      </Table>
+                          </Table>
+                        </div>
+                      </>
                     )}
                   </div>
                 </CardContent>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -78,6 +79,7 @@ export function ScoreEntryPanel({
   } | null>(null);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [mobileFocusMode, setMobileFocusMode] = useState(false);
   const [pending, startTransition] = useTransition();
   const [liveUpdatedAt, setLiveUpdatedAt] = useState(expectedUpdatedAt);
   const [autoSaveLive, setAutoSaveLive] = useState(defaultAutoSaveLive);
@@ -99,6 +101,26 @@ export function ScoreEntryPanel({
   useEffect(() => {
     setsRef.current = sets;
   }, [sets]);
+
+  useEffect(() => {
+    if (!mobileFocusMode) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMobileFocusMode(false);
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [mobileFocusMode]);
 
   useEffect(() => {
     try {
@@ -390,24 +412,61 @@ export function ScoreEntryPanel({
       : null;
 
   return (
-    <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-sm font-medium text-slate-900">
-            {mode === "correct" ? t("correctScore") : t("scoreEntry")}
+    <div
+      className={cn(
+        "space-y-3 rounded-lg border border-slate-200 bg-white p-2 sm:space-y-4 sm:p-4",
+        mobileFocusMode &&
+          "fixed inset-0 z-50 min-h-dvh overflow-y-auto rounded-none border-0 bg-slate-50 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] sm:static sm:min-h-0 sm:overflow-visible sm:rounded-lg sm:border sm:bg-white sm:p-4",
+      )}
+    >
+      {mobileFocusMode ? (
+        <header className="sticky top-0 z-10 -mx-2 -mt-2 border-b border-slate-200 bg-white/95 px-3 py-3 backdrop-blur sm:hidden">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            {t("currentMatch")}
           </p>
-          <p className="text-xs text-slate-500">
-            {t("bestOfHint", { bestOf: rule.bestOfSets, needed })}
-          </p>
-        </div>
-        <div className="flex gap-1 rounded-md border border-slate-200 p-0.5">
+          <h2 className="mt-1 text-base font-semibold leading-snug text-slate-950">
+            {labelA}{" "}
+            <span className="font-normal text-slate-400">vs</span>{" "}
+            {labelB}
+          </h2>
+        </header>
+      ) : null}
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="text-sm font-medium text-slate-900">
+              {mode === "correct" ? t("correctScore") : t("scoreEntry")}
+            </p>
+            <p className="text-xs text-slate-500">
+              {t("bestOfHint", { bestOf: rule.bestOfSets, needed })}
+            </p>
+          </div>
           <button
             type="button"
+            className="inline-flex min-h-10 shrink-0 touch-manipulation items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 shadow-sm transition-[background-color,transform] hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 active:scale-[0.98] sm:hidden"
+            aria-label={
+              mobileFocusMode ? t("exitScoreFocus") : t("enterScoreFocus")
+            }
+            aria-pressed={mobileFocusMode}
+            onClick={() => setMobileFocusMode((current) => !current)}
+          >
+            {mobileFocusMode ? (
+              <Minimize2 aria-hidden="true" className="size-4" />
+            ) : (
+              <Maximize2 aria-hidden="true" className="size-4" />
+            )}
+            {mobileFocusMode ? t("exitFocus") : t("fullScreen")}
+          </button>
+        </div>
+        <div className="grid w-full grid-cols-2 gap-1 rounded-lg border border-slate-200 p-1 sm:flex sm:w-auto">
+          <button
+            type="button"
+            aria-pressed={inputMode === "stepper"}
             className={cn(
-              "rounded px-3 py-1.5 text-xs font-medium",
+              "min-h-11 touch-manipulation rounded-md px-3 text-sm font-medium transition-[background-color,color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 active:scale-[0.98]",
               inputMode === "stepper"
                 ? "bg-slate-900 text-white"
-                : "text-slate-600",
+                : "text-slate-600 hover:bg-slate-100",
             )}
             onClick={() => setInputMode("stepper")}
           >
@@ -415,11 +474,12 @@ export function ScoreEntryPanel({
           </button>
           <button
             type="button"
+            aria-pressed={inputMode === "direct"}
             className={cn(
-              "rounded px-3 py-1.5 text-xs font-medium",
+              "min-h-11 touch-manipulation rounded-md px-3 text-sm font-medium transition-[background-color,color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 active:scale-[0.98]",
               inputMode === "direct"
                 ? "bg-slate-900 text-white"
-                : "text-slate-600",
+                : "text-slate-600 hover:bg-slate-100",
             )}
             onClick={() => setInputMode("direct")}
           >
@@ -432,12 +492,12 @@ export function ScoreEntryPanel({
         {sets.map((set, setIndex) => (
           <div
             key={set.setNumber}
-            className="rounded-md border border-slate-100 bg-slate-50 p-3"
+            className="rounded-md border border-slate-100 bg-slate-50 p-2 sm:p-3"
           >
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:mb-2">
               {t("setLabel", { setNumber: set.setNumber })}
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
               <ScoreSide
                 label={labelA}
                 value={set.scoreA}
@@ -661,28 +721,33 @@ function ScoreSide({
   return (
     <div
       className={cn(
-        "rounded-md border bg-white p-2",
+        "min-w-0 rounded-md border bg-white p-1.5 sm:p-2",
         active ? "border-slate-900 ring-2 ring-slate-900/20" : "border-slate-200",
       )}
     >
       <p className="mb-2 truncate text-xs font-medium text-slate-600">{label}</p>
       {mode === "stepper" ? (
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-[minmax(2.75rem,1fr)_auto_minmax(2.75rem,1fr)] items-center gap-1.5 sm:gap-2">
           <button
             type="button"
             aria-label={t("decrease", { label })}
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-2xl font-bold text-slate-900 active:bg-slate-300"
+            disabled={value <= 0}
+            className="flex h-12 w-full touch-manipulation select-none items-center justify-center rounded-lg bg-slate-200 text-xl font-bold text-slate-900 transition-[background-color,transform] hover:bg-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 sm:h-14 sm:text-2xl"
             onClick={() => onBump(-1)}
           >
             −
           </button>
-          <span className="flex min-w-0 flex-1 items-center justify-center text-3xl font-semibold tabular-nums">
+          <span
+            className="flex min-w-8 items-center justify-center text-3xl font-semibold leading-none tabular-nums text-slate-950 sm:min-w-10"
+            aria-live="polite"
+          >
             {value}
           </span>
           <button
             type="button"
             aria-label={t("increase", { label })}
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-2xl font-bold text-white active:bg-slate-700"
+            disabled={value >= 99}
+            className="flex h-12 w-full touch-manipulation select-none items-center justify-center rounded-lg bg-slate-900 text-xl font-bold text-white transition-[background-color,transform] hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 sm:h-14 sm:text-2xl"
             onClick={() => onBump(1)}
           >
             +
@@ -702,7 +767,8 @@ function ScoreSide({
           type="number"
           min={0}
           max={99}
-          className="mt-2 h-9 w-full rounded-md border border-slate-200 px-2 text-center text-sm"
+          inputMode="numeric"
+          className="mt-2 h-11 w-full rounded-md border border-slate-200 px-2 text-center text-base font-medium tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
           value={value}
           onChange={(e) => onChange(Number(e.target.value) || 0)}
           aria-label={t("directScore", { label })}

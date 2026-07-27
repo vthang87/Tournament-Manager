@@ -209,7 +209,39 @@ export default async function PublicTournamentPage({
                     {group.groupName} ·{" "}
                     {localizeStageName(group.stageName, tStages)}
                   </h3>
-                  <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                  <div className="mt-2 divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white sm:hidden">
+                    {group.rows.map((row) => (
+                      <article key={row.entryId} className="p-3">
+                        <div className="flex items-start gap-3">
+                          <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-slate-100 font-semibold tabular-nums">
+                            {row.rank}
+                          </span>
+                          <p className="font-semibold leading-snug text-slate-900">
+                            {row.displayName}
+                          </p>
+                        </div>
+                        <dl className="mt-3 grid grid-cols-5 gap-1 border-t border-slate-100 pt-2 text-center">
+                          {[
+                            [tc("played"), row.played],
+                            [tc("wins"), row.wins],
+                            [tc("losses"), row.losses],
+                            [tc("setDiff"), row.setDiff],
+                            [tc("pointDiff"), row.pointDiff],
+                          ].map(([label, value]) => (
+                            <div key={String(label)}>
+                              <dt className="truncate text-[10px] uppercase tracking-wide text-slate-500">
+                                {label}
+                              </dt>
+                              <dd className="mt-0.5 font-medium tabular-nums">
+                                {value}
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </article>
+                    ))}
+                  </div>
+                  <div className="mt-2 hidden overflow-x-auto rounded-lg border border-slate-200 bg-white sm:block">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -260,7 +292,38 @@ export default async function PublicTournamentPage({
                   {localizeStageName(bracket.stageName, tStages)} ·{" "}
                   {t("drawSize", { size: bracket.bracketSize })}
                 </h3>
-                <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                <div className="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white sm:hidden">
+                  {bracket.matches.map((m) => (
+                    <article key={m.id} className="space-y-2 p-3">
+                      <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
+                        <span>
+                          {tc("round")} {m.roundIndex + 1}
+                        </span>
+                        <span>
+                          {tc("match")} {m.matchIndex + 1}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium leading-snug text-slate-900">
+                        {m.isByeA
+                          ? tc("bye")
+                          : (m.entryAName ?? tc("tbd"))}{" "}
+                        <span className="font-normal text-slate-400">
+                          {tc("vs")}
+                        </span>{" "}
+                        {m.isByeB
+                          ? tc("bye")
+                          : (m.entryBName ?? tc("tbd"))}
+                      </p>
+                      <p className="border-t border-slate-100 pt-2 text-xs text-slate-500">
+                        {tc("winner")}:{" "}
+                        <strong className="font-medium text-slate-800">
+                          {m.winnerName ?? tc("dash")}
+                        </strong>
+                      </p>
+                    </article>
+                  ))}
+                </div>
+                <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white sm:block">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -334,8 +397,56 @@ function MatchTable({
     return <p className="mt-3 text-sm text-slate-600">{empty}</p>;
   }
   return (
-    <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white">
-      <Table>
+    <>
+      <div className="mt-3 divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white sm:hidden">
+        {rows.map((m) => (
+          <article
+            key={m.id}
+            className={cn("space-y-2 p-3", matchStatusRowClass(m.status))}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="font-medium text-slate-500">{m.eventName}</span>
+              <span className={cn("font-medium", matchStatusTextClass(m.status))}>
+                {tStatus(matchStatusKey(m.status))}
+              </span>
+            </div>
+            <p className="text-sm font-semibold leading-snug text-slate-900">
+              {m.entryAName ?? tc("tbd")} {tc("vs")}{" "}
+              {m.entryBName ?? tc("tbd")}
+            </p>
+            {m.winnerName ? (
+              <p className="text-xs text-slate-500">
+                {t("winnerColon", { name: m.winnerName })}
+              </p>
+            ) : null}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-100 pt-2 text-xs text-slate-600">
+              {showWhen ? (
+                <time
+                  dateTime={m.scheduledAt ?? undefined}
+                  className="tabular-nums"
+                >
+                  {m.scheduledAt
+                    ? new Date(m.scheduledAt).toLocaleString()
+                    : tc("dash")}
+                </time>
+              ) : null}
+              <span>
+                {tc("court")}: {m.courtCode ?? tc("dash")}
+              </span>
+              {showScore ? (
+                <strong className="font-medium tabular-nums text-slate-800">
+                  {tc("score")}:{" "}
+                  {m.sets.map((s) => `${s.scoreA}-${s.scoreB}`).join(", ") ||
+                    tc("dash")}
+                </strong>
+              ) : null}
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="mt-3 hidden overflow-x-auto rounded-lg border border-slate-200 bg-white sm:block">
+        <Table>
         <TableHeader>
           <TableRow>
             {showWhen ? <TableHead scope="col">{tc("when")}</TableHead> : null}
@@ -381,7 +492,8 @@ function MatchTable({
             </TableRow>
           ))}
         </TableBody>
-      </Table>
-    </div>
+        </Table>
+      </div>
+    </>
   );
 }

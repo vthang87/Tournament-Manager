@@ -91,6 +91,7 @@ export class DrizzlePlayerRepository {
     ownerUserId: string,
     query?: string,
     sportId?: string,
+    clubId?: string,
   ): Promise<Player[]> {
     const rows = await this.db
       .select()
@@ -115,8 +116,12 @@ export class DrizzlePlayerRepository {
       .map((row) => mapPlayer(row, profilesByPlayer.get(row.id) ?? []))
       .filter(
         (player) =>
-          !sportId ||
-          player.sports.some((profile) => profile.sportId === sportId),
+          (!sportId && !clubId) ||
+          player.sports.some(
+            (profile) =>
+              (!sportId || profile.sportId === sportId) &&
+              (!clubId || profile.clubId === clubId),
+          ),
       );
     const q = query?.trim();
     if (!q) {

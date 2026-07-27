@@ -142,7 +142,7 @@ export function CourtPinControls({
   return (
     <div className="space-y-2 text-left">
       <div className="flex flex-wrap items-center gap-2">
-        <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">
+        <code className="break-all rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">
           {publicPath}
         </code>
         <Button

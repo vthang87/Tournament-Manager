@@ -345,11 +345,12 @@ export function MatchOpsPanel(props: Props) {
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         {canSpecial ? (
           <Button
             type="button"
             variant="secondary"
+            className="w-full sm:w-auto"
             disabled={pending}
             onClick={() => setSpecialOpen(true)}
           >
@@ -360,6 +361,7 @@ export function MatchOpsPanel(props: Props) {
           <Button
             type="button"
             variant="destructive"
+            className="w-full sm:w-auto"
             disabled={pending}
             onClick={() => setCancelOpen(true)}
           >

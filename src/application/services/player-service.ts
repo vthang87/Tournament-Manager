@@ -39,11 +39,48 @@ export class PlayerService {
     this.access = new TournamentAccessService(db);
   }
 
-  list(actor: ActorContext, query?: string, sportId?: string) {
+  list(
+    actor: ActorContext,
+    query?: string,
+    sportId?: string,
+    clubId?: string,
+  ) {
     if (!actor.userId) {
       return [];
     }
-    return this.players.list(actor.userId, query, sportId);
+    return this.players.list(actor.userId, query, sportId, clubId);
+  }
+
+  async listPage(
+    actor: ActorContext,
+    {
+      query,
+      sportId,
+      clubId,
+      page = 1,
+      pageSize = 20,
+    }: {
+      query?: string;
+      sportId?: string;
+      clubId?: string;
+      page?: number;
+      pageSize?: number;
+    },
+  ) {
+    const allItems = await this.list(actor, query, sportId, clubId);
+    const safePageSize = Math.max(1, Math.min(pageSize, 100));
+    const total = allItems.length;
+    const totalPages = Math.max(1, Math.ceil(total / safePageSize));
+    const safePage = Math.min(Math.max(1, page), totalPages);
+    const offset = (safePage - 1) * safePageSize;
+
+    return {
+      items: allItems.slice(offset, offset + safePageSize),
+      total,
+      page: safePage,
+      pageSize: safePageSize,
+      totalPages,
+    };
   }
 
   async listForTournament(actor: ActorContext, tournamentId: string) {

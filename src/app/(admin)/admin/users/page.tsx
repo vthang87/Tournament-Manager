@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { Search } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { UserManagementService } from "@/application/services";
 import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
+import { Pagination } from "@/components/shared/pagination";
 import {
   Table,
   TableBody,
@@ -24,16 +26,18 @@ export const dynamic = "force-dynamic";
 export default async function UsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 }) {
-  const { q } = await searchParams;
+  const { q, page } = await searchParams;
   const currentUser = await requireRoleOrRedirect(["SUPER_ADMIN"]);
   const t = await getTranslations("users");
   const tc = await getTranslations("common");
-  const managedUsers = await new UserManagementService(getDb()).list(
+  const requestedPage = Math.max(1, Number.parseInt(page ?? "1", 10) || 1);
+  const managedUserPage = await new UserManagementService(getDb()).listPage(
     { userId: currentUser.id, role: currentUser.role },
-    q,
+    { query: q, page: requestedPage },
   );
+  const managedUsers = managedUserPage.items;
 
   return (
     <div className="space-y-6">
@@ -62,13 +66,47 @@ export default async function UsersPage({
         />
         <button
           type="submit"
-          className="h-10 rounded-md border border-slate-200 bg-white px-4 text-sm hover:bg-slate-50"
+          aria-label={tc("search")}
+          className="inline-flex size-10 shrink-0 touch-manipulation items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 sm:w-auto sm:px-4 sm:text-sm"
         >
-          {tc("search")}
+          <Search className="size-4 sm:hidden" aria-hidden="true" />
+          <span className="hidden sm:inline">{tc("search")}</span>
         </button>
       </form>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <div className="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white sm:hidden">
+        {managedUsers.map((user) => (
+          <article key={user.id} className="space-y-2.5 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <Link
+                href={`/admin/users/${user.id}`}
+                className="font-semibold text-slate-900 underline-offset-2 hover:underline"
+              >
+                @{user.username}
+              </Link>
+              <span
+                className={
+                  user.active
+                    ? "inline-flex shrink-0 items-center rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700"
+                    : "inline-flex shrink-0 items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500"
+                }
+              >
+                {user.active ? t("active") : t("inactive")}
+              </span>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-800">
+                {user.displayName}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {t(`roles.${user.role}`)}
+              </p>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white sm:block">
         <Table>
           <TableHeader>
             <TableRow>
@@ -107,6 +145,14 @@ export default async function UsersPage({
           </TableBody>
         </Table>
       </div>
+
+      <Pagination
+        pathname="/admin/users"
+        page={managedUserPage.page}
+        totalPages={managedUserPage.totalPages}
+        totalItems={managedUserPage.total}
+        params={{ q }}
+      />
     </div>
   );
 }

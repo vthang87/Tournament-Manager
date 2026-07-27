@@ -157,7 +157,7 @@ export default async function MatchDetailPage({
           items={[{ href: `${basePath}/matches`, label: t("title") }]}
           current={`${labelA} ${tc("vs")} ${labelB}`}
         />
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+        <h2 className="mt-2 text-xl font-semibold leading-tight tracking-tight text-balance sm:text-2xl">
           {labelA} {tc("vs")} {labelB}
         </h2>
         <p className="mt-1 text-sm text-slate-600">
