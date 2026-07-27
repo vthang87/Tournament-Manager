@@ -1,210 +1,94 @@
 # Tournament Manager
 
-Internal tournament operations platform. Stack: Next.js App Router, TypeScript,
-Drizzle ORM, PostgreSQL, Tailwind CSS.
+Tournament Manager là nền tảng quản lý và vận hành giải đấu dành cho
+**Badminton** và **Pickleball**. Hệ thống hỗ trợ toàn bộ quy trình từ chuẩn bị
+giải, tiếp nhận vận động viên, bốc thăm, xếp lịch và nhập tỷ số cho đến công bố
+kết quả trực tiếp cho khán giả.
 
-## Prerequisites
+Giao diện được tối ưu cho cả máy tính và điện thoại, có tiếng Việt và English,
+phù hợp với ban tổ chức, điều hành viên, trọng tài sân và người theo dõi giải.
 
-- Node.js 20+ (`nvm use` reads `.nvmrc`)
-- [pnpm](https://pnpm.io) 10+
+## Luồng vận hành
 
-## Local setup
-
-```bash
-cp .env.example .env
-pnpm install
-pnpm db:generate   # first time / after schema changes
-pnpm db:migrate
-pnpm db:seed
-pnpm dev
+```mermaid
+flowchart LR
+    A["Tạo giải & nội dung"] --> B["Đăng ký VĐV / cặp đấu"]
+    B --> C["Bốc thăm & chia bảng"]
+    C --> D["Sinh trận & xếp lịch"]
+    D --> E["Gọi sân & nhập tỷ số"]
+    E --> F["Xếp hạng & bracket"]
+    F --> G["Công khai kết quả & live board"]
 ```
 
-Open [http://localhost:3000/login](http://localhost:3000/login). The seed creates:
+## Chức năng chính
 
-- Super Admin user `admin` / `admin123`
-- Demo users for `ADMIN`, `OPERATOR`, `SCOREKEEPER`, and `VIEWER` with
-  password `demo1234`
-- Tournament `HCMC Badminton Open 2026` (slug `hcmc-badminton-open-2026`)
-- Men's Doubles event, 3 match-rule presets, 4 courts
-- Court referee PIN `1234` on all demo courts (kiosk scoring)
+### Chuẩn bị giải đấu
 
-`/admin/*` requires a signed `tm_session` cookie. Unauthenticated requests redirect to `/login`.
+- Quản lý giải đấu theo môn thể thao, múi giờ, địa điểm và thời gian tổ chức.
+- Tạo nội dung đơn/đôi, cấu hình vòng bảng và vòng loại trực tiếp.
+- Thiết lập luật thi đấu theo từng giai đoạn, bao gồm số set, điểm thắng,
+  cách biệt và điểm tối đa.
+- Quản lý sân, mã sân, trạng thái hoạt động và PIN truy cập cho trọng tài.
 
-### Public URL pattern
+### Vận động viên và đăng ký
 
-Public read-only views (no auth, no PII):
+- Quản lý câu lạc bộ, vận động viên và hồ sơ xếp hạng riêng theo từng môn.
+- Tạo VĐV/cặp đấu, hạt giống và trạng thái tham dự.
+- Import danh sách từ Excel, kiểm tra dữ liệu trước khi ghi và export dữ liệu
+  giải để lưu trữ.
+- Dữ liệu giải đấu, CLB và VĐV được phân tách theo chủ sở hữu.
 
-```text
-{APP_URL}/t/{tournament-slug}
-```
+### Bốc thăm và sinh trận
 
-Example after seed: [http://localhost:3000/t/hcmc-badminton-open-2026](http://localhost:3000/t/hcmc-badminton-open-2026)
+- Bốc thăm chia bảng trực quan với hạt giống.
+- Ưu tiên tách các VĐV/cặp cùng CLB khi vẫn còn vị trí hợp lệ.
+- Sinh lịch vòng tròn theo bảng và bracket loại trực tiếp.
+- Hỗ trợ chung kết, tranh hạng ba, walkover, no-show, retirement,
+  disqualification và cancellation.
 
-Sections: schedule, results, groups, standings, bracket + QR code to the same URL.
+### Xếp lịch và điều hành sân
 
-Court referee scoring (PIN unlock, no admin account):
+- Gán lịch thủ công hoặc tự động theo nhiều sân.
+- Cấu hình thời lượng trận, thời gian nghỉ và tránh một cặp thi đấu hai lượt
+  liên tiếp.
+- Kiểm tra xung đột sân/VĐV, khóa lịch và xem trước bản in.
+- Bảng điều hành sân hiển thị trận đang đấu và trận tiếp theo.
 
-```text
-{APP_URL}/r/{tournament-slug}/c/{court-code}
-```
+### Nhập tỷ số và kết quả
 
-Example: [http://localhost:3000/r/hcmc-badminton-open-2026/c/C1](http://localhost:3000/r/hcmc-badminton-open-2026/c/C1) (PIN `1234` after seed). Configure PIN and copy links from Admin → Courts.
+- Nhập tỷ số trực tiếp bằng giao diện cảm ứng tối ưu cho điện thoại.
+- Mở trang trọng tài sân bằng QR/link và PIN mà không cần tài khoản admin.
+- Tự động tính kết quả trận, bảng xếp hạng, đội đi tiếp và sơ đồ giải.
+- Hiển thị nổi bật trận chung kết, hạng ba và đường đi trong bracket.
 
-Ops boards (auth required):
+### Dashboard và kênh công khai
 
-- Dashboard: `/admin`
-- TV live board: `/admin/tournaments/{id}/live` (polls ~12s)
-- Court now/next: `/admin/tournaments/{id}/courts/live`
+- Dashboard tổng hợp số lượng đăng ký, trận chờ, đang đấu, hoàn thành và sân.
+- TV board cho khu vực vận hành và bảng live công khai cho khán giả.
+- Live board ưu tiên cập nhật bằng Server-Sent Events (SSE), tự chuyển sang
+  polling khi kết nối stream không khả dụng.
+- Trang giải công khai hiển thị lịch, kết quả, bảng đấu, xếp hạng và bracket mà
+  không làm lộ dữ liệu cá nhân.
 
-### Scripts
+### Quản trị và phân quyền
 
-| Script | Purpose |
+| Vai trò | Phạm vi chính |
 |---|---|
-| `pnpm dev` | Next.js development server |
-| `pnpm build` / `pnpm start` | Production build & serve |
-| `pnpm lint` | ESLint |
-| `pnpm typecheck` | `tsc --noEmit` |
-| `pnpm test` | Vitest |
-| `pnpm test:e2e` | Playwright smoke (skips if browsers/server missing) |
-| `pnpm db:generate` | Generate Drizzle migrations from schema |
-| `pnpm db:migrate` | Apply migrations |
-| `pnpm db:seed` | Idempotent local seed |
-| `pnpm db:seed:scenarios` | Seed 6 idempotent badminton + pickleball demo scenarios |
+| `SUPER_ADMIN` | Quản lý toàn hệ thống, tài khoản và mọi giải đấu |
+| `ADMIN` | Quản trị giải đấu được sở hữu hoặc được phân quyền |
+| `OPERATOR` | Điều hành đăng ký, bốc thăm, lịch, sân và trận đấu |
+| `SCOREKEEPER` | Gọi sân và cập nhật tỷ số theo quyền được cấp |
+| `VIEWER` | Xem dữ liệu vận hành trong phạm vi được chia sẻ |
+| Court PIN | Truy cập trang nhập tỷ số của một sân, không cần tài khoản |
 
-SQLite file defaults to `./data/tournament-manager.db` (gitignored).
+Chủ giải có thể mời tài khoản hiện có vào từng giải và gán vai trò riêng mà
+không mở quyền truy cập sang dữ liệu của chủ sở hữu khác.
 
-## Full demo scenarios
+## Tài liệu
 
-Run the dedicated scenario seed without changing the existing `pnpm db:seed`
-snapshot:
-
-```bash
-pnpm db:seed:scenarios
-```
-
-The command creates six isolated demo tournaments. Each sport has a draw-ready
-fixture, a knockout-live fixture, and a completed fixture:
-
-| Sport | State | Public URL |
-|---|---|---|
-| Badminton | Draw ready | `/t/badminton-demo-draw-ready` |
-| Badminton | Knockout live | `/t/badminton-demo-knockout-live` |
-| Badminton | Completed | `/t/badminton-demo-completed` |
-| Pickleball | Draw ready | `/t/pickleball-demo-draw-ready` |
-| Pickleball | Knockout live | `/t/pickleball-demo-knockout-live` |
-| Pickleball | Completed | `/t/pickleball-demo-completed` |
-
-Every progressed fixture contains 32 men's doubles entries, 8 groups, 4
-courts, 48 group matches, and a 16-match knockout bracket including the third
-place match. Across each sport the data covers pending, scheduled,
-called-to-court, in-progress, normal completion, walkover, no-show, retirement,
-disqualification, and cancellation.
-
-Pickleball uses one game to 15 for group/playoff matches and best-of-three to 11
-for medal matches, win by two. The engine currently requires a finite maximum,
-so the pickleball technical cap is set to 99.
-
-Credentials include `admin` / `admin123` plus role-specific demo users with
-password `demo1234`; all demo court links use PIN `1234`.
-
-## User guide website
-
-The Vietnamese guide is built with Material for MkDocs. Source pages live in
-[`docs/hdsd`](docs/hdsd/index.md).
-
-```bash
-python3 -m pip install -r requirements-docs.txt
-mkdocs serve
-mkdocs build --strict
-```
-
-Local preview: [http://127.0.0.1:8000](http://127.0.0.1:8000)
-
-GitHub Pages: [https://vthang87.github.io/Tournament-Manager/](https://vthang87.github.io/Tournament-Manager/)
-
-## Excel import / export
-
-**Roles:** import = ADMIN or OPERATOR; export = any authenticated role with `view` (operator+ typically).
-
-Per event:
-
-1. Open `/admin/tournaments/{tournamentId}/events/{eventId}/import`
-2. Download-shaped template columns:
-   - **Singles:** `Player Name`, `Club`, `Seed`
-   - **Doubles:** `Player 1`, `Player 2`, `Club`, `Seed`
-3. Upload `.xlsx` → preview valid/invalid rows → fix blocking errors → **Confirm import** (single transaction; no partial write)
-4. Export workbooks from `/admin/tournaments/{tournamentId}/events/{eventId}/export`:
-   - `Participants`, `GroupDraw`, `Schedule`, `Results`, `Standings`
-
-Limits: 2 MiB upload, 500 import rows. Formula-injection: leading `= + - @` are stripped on import and escaped (`'…`) on export.
-
-## Docker production notes
-
-```bash
-docker compose up -d --build
-```
-
-- App: [http://localhost:3000](http://localhost:3000)
-- Healthcheck: [http://localhost:3000/api/health](http://localhost:3000/api/health) (`curl` in image; Docker `HEALTHCHECK` every 30s)
-- On start (`docker/entrypoint.sh`): **migrate → optional seed → `node server.js`**
-- Persist SQLite via named volume `tm_data` → `/data/tournament-manager.db`
-- Set a strong `SESSION_SECRET` and correct `APP_URL` for QR/public links
-- For production, set `RUN_SEED_ON_START=false` after the first boot
-
-### Backup / restore SQLite volume
-
-```bash
-# Backup (stop or briefly pause writes for a consistent copy)
-docker compose stop app
-docker run --rm -v tm_data:/data -v "$PWD:/backup" alpine \
-  cp /data/tournament-manager.db /backup/tournament-manager-$(date +%Y%m%d).db
-docker compose start app
-
-# Restore
-docker compose stop app
-docker run --rm -v tm_data:/data -v "$PWD:/backup" alpine \
-  cp /backup/tournament-manager-YYYYMMDD.db /data/tournament-manager.db
-docker compose start app
-```
-
-Local non-Docker backup: copy `./data/tournament-manager.db` (and `-wal`/`-shm` if present) while the app is stopped, or use `sqlite3 .backup`.
-
-## Operator guide — 32-team (8-group) flow
-
-1. Create or open the tournament; add courts.
-2. Create an event (singles/doubles) + match rules + stages: **Group** then **Knockout**.
-3. Import or enter **32 entries**; mark event `DRAW_READY` when pipeline validates.
-4. Generate and confirm the group draw (8 groups × 4).
-5. Generate round-robin matches; schedule onto courts.
-6. Score group matches; refresh standings; resolve qualification into KO.
-7. Generate bracket; schedule KO; score through final.
-8. Use `/admin` + live boards for ops; share `/t/{slug}` (+ QR) with audience.
-9. Export Participants / Schedule / Results / Standings for records.
-
-## Known V1 limitations
-
-- Polling only for live/public refresh (no websockets/SSE).
-- No spectator accounts; public view is fully anonymous read-only.
-- Excel import does not update existing entries (create-oriented).
-- Team events and advanced seeding UI are limited.
-- Schedule conflict UX is service-backed; expect operators to resolve manually when warned.
-- Single-node SQLite — not multi-writer / multi-region HA.
-- Playwright E2E is a smoke suite; full 32-team automation is not bundled.
-
-## Architecture notes
-
-- Business logic stays in application services + tournament engine; UI stays thin.
-- Public DTOs strip phone/email/audit/user fields.
-- Admin routes are protected via server-side session checks in the admin layout.
-- Tournaments, players, and clubs are owner-scoped. Tournament owners can share
-  individual tournaments with existing users using per-tournament roles.
-- `SUPER_ADMIN` is the platform-level role. It can manage accounts at
-  `/admin/users`; tournament-level `ADMIN` remains scoped to a specific event.
-- Tournaments and system rule presets are sport-scoped; players can have
-  separate ranking and club profiles for multiple sports.
-
-See `docs/architecture.md` and `docs/cursor-implementation-plan.md`.
-
-## Internationalization
-
-Locales: **vi** (default) and **en**. Messages live in `messages/vi.json` and `messages/en.json`. The active locale is stored in the `tm_locale` cookie. Use the language switcher in the admin header, on the login page, and on the public tournament page (`/t/{slug}`).
+- [Hướng dẫn sử dụng trực tuyến](https://vthang87.github.io/Tournament-Manager/)
+- [Hướng dẫn sử dụng trong repository](docs/hdsd/index.md)
+- [Tài liệu dành cho developer](DEVELOPMENT.md)
+- [Kiến trúc hệ thống](docs/architecture.md)
+- [Triển khai bằng Portainer](docs/portainer-deploy.md)
+- [Chiến lược open source](docs/open-source-strategy.md)
