@@ -91,4 +91,14 @@ không mở quyền truy cập sang dữ liệu của chủ sở hữu khác.
 - [Tài liệu dành cho developer](DEVELOPMENT.md)
 - [Kiến trúc hệ thống](docs/architecture.md)
 - [Triển khai bằng Portainer](docs/portainer-deploy.md)
-- [Chiến lược open source](docs/open-source-strategy.md)
+- [Chiến lược source-available](docs/open-source-strategy.md)
+
+## Giấy phép
+
+Tournament Manager được phát hành theo
+[PolyForm Noncommercial License 1.0.0](LICENSE). Cá nhân và tổ chức phi thương
+mại được sử dụng, sửa đổi và phân phối lại phần mềm theo các điều kiện của giấy
+phép. Mọi mục đích thương mại cần có giấy phép thương mại riêng từ chủ sở hữu.
+
+Đây là giấy phép **source-available**, không phải giấy phép open source được OSI
+phê duyệt.

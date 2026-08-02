@@ -209,4 +209,4 @@ Xem thêm:
 - [Kiến trúc hệ thống](docs/architecture.md)
 - [Hướng dẫn sử dụng](docs/hdsd/index.md)
 - [Triển khai Portainer](docs/portainer-deploy.md)
-- [Chiến lược open source](docs/open-source-strategy.md)
+- [Chiến lược source-available](docs/open-source-strategy.md)
