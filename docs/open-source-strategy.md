@@ -1,6 +1,7 @@
-# Chiến lược Open Source
+# Chiến lược Source-Available
 
-> Trạng thái: đề xuất để triển khai sau, chưa nằm trong phạm vi MVP hiện tại.
+> Trạng thái: repository đã áp dụng PolyForm Noncommercial 1.0.0; lộ trình tách
+> core và sport plugin vẫn là đề xuất triển khai sau MVP.
 
 ## Cập nhật nền tảng đã triển khai
 
@@ -30,11 +31,14 @@ Mục tiêu chính:
 - Cho phép cộng đồng sử dụng và mở rộng engine.
 - Hỗ trợ badminton trước, sau đó mở rộng sang pickleball và các môn tương tự.
 - Giữ business logic độc lập với Next.js, React, database và hạ tầng triển khai.
-- Cho phép xây sản phẩm thương mại dựa trên hosting, tích hợp và dịch vụ.
+- Cho phép chủ sở hữu xây sản phẩm thương mại dựa trên hosting, tích hợp và
+  dịch vụ; bên thứ ba cần giấy phép thương mại riêng.
 
-## 2. Giấy phép đề xuất
+## 2. Giấy phép
 
-Sử dụng **Apache-2.0** thống nhất cho toàn bộ phần open source:
+Repository hiện được phát hành theo **PolyForm Noncommercial 1.0.0**. Khi tách
+package, tiếp tục sử dụng giấy phép này thống nhất cho toàn bộ phần
+source-available:
 
 - Core engine.
 - Plugin môn thể thao chính thức.
@@ -42,14 +46,17 @@ Sử dụng **Apache-2.0** thống nhất cho toàn bộ phần open source:
 - API contracts và API cơ bản.
 - Tài liệu và ví dụ tích hợp.
 
-Apache-2.0 cho phép sử dụng thương mại, sửa đổi và phân phối, đồng thời có điều
-khoản cấp phép bằng sáng chế rõ ràng. Điều này phù hợp hơn khi muốn doanh nghiệp
-và cộng đồng xây plugin trên nền tảng.
+Giấy phép cho phép sử dụng cá nhân và các mục đích phi thương mại, đồng thời cho
+phép sửa đổi và phân phối lại trong phạm vi phi thương mại. Mọi sử dụng thương
+mại cần một thỏa thuận giấy phép riêng với chủ sở hữu.
+
+PolyForm Noncommercial là giấy phép **source-available**, không phải giấy phép
+open source được OSI phê duyệt.
 
 Tham khảo:
 
-- [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
-- [MIT License](https://opensource.org/license/mit)
+- [PolyForm Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/)
+- [SPDX identifier: PolyForm-Noncommercial-1.0.0](https://spdx.org/licenses/PolyForm-Noncommercial-1.0.0.html)
 
 Đây là định hướng sản phẩm, không thay thế tư vấn pháp lý trước khi phát hành.
 
@@ -232,7 +239,7 @@ Mỗi preset cần có:
 - Migration hoặc thông báo khi luật thay đổi.
 
 Nếu sử dụng tên `BWF`, cần ghi rõ đây là cấu hình tương thích quy tắc và không
-hàm ý được BWF chứng nhận. Apache-2.0 không cấp quyền sử dụng nhãn hiệu.
+hàm ý được BWF chứng nhận. Giấy phép phần mềm không cấp quyền sử dụng nhãn hiệu.
 
 ## 8. Lộ trình migration từ repo hiện tại
 
@@ -298,7 +305,8 @@ không viết lại từ đầu.
 
 ## 10. Mô hình thương mại
 
-Phần open source phải đủ dùng cho một giải đấu thực tế. Doanh thu nên đến từ:
+Phần source-available phải đủ dùng cho một giải đấu thực tế. Doanh thu nên đến
+từ giấy phép thương mại và các dịch vụ:
 
 - Hosted Tournament Cloud.
 - Multi-tenant và custom domain.
