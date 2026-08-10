@@ -1,0 +1,83 @@
+# yaml-language-server: $schema=https://squidfunk.github.io/mkdocs-material/schema.json
+
+site_name: Hướng dẫn sử dụng Tournament Manager
+site_description: Hướng dẫn dành cho ban tổ chức, trọng tài theo sân và khán giả
+site_url: https://vthang87.github.io/Tournament-Manager/
+repo_url: https://github.com/vthang87/Tournament-Manager
+repo_name: vthang87/Tournament-Manager
+docs_dir: docs/hdsd
+site_dir: site
+
+theme:
+  name: material
+  language: vi
+  icon:
+    logo: material/trophy
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: green
+      toggle:
+        icon: material/weather-night
+        name: Chuyển sang giao diện tối
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: green
+      toggle:
+        icon: material/weather-sunny
+        name: Chuyển sang giao diện sáng
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search:
+      lang: vi
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - pymdownx.details
+  - pymdownx.superfences
+
+extra_css:
+  - stylesheets/extra.css
+
+nav:
+  - Bắt đầu:
+      - Tổng quan: index.md
+      - Quản lý tài khoản: quan-ly-tai-khoan.md
+      - Chuẩn bị giải: chuan-bi-giai.md
+  - Thiết lập:
+      - Import và Export: import-export.md
+      - Bốc thăm: boc-tham.md
+      - Sân và PIN: san-va-pin.md
+      - Xếp lịch và in lịch: xep-lich.md
+  - Ngày thi đấu:
+      - Trọng tài theo sân: trong-tai-san.md
+      - Điều hành từ Admin: dieu-hanh-admin.md
+      - Dành cho khán giả: khan-gia.md
+      - Quy trình ngày thi đấu: ngay-thi-dau.md
+  - Tham khảo:
+      - Vai trò và quyền: vai-tro-quyen.md
+      - Môi trường demo: demo.md
+      - Xử lý sự cố: xu-ly-su-co.md
+
+extra:
+  generator: false
+
+copyright: Tournament Manager · Hướng dẫn vận hành

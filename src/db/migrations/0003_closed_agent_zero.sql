@@ -1,0 +1,1 @@
+ALTER TABLE "courts" ADD COLUMN "access_pin_encrypted" text;

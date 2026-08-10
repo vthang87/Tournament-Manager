@@ -1,0 +1,51 @@
+:root {
+  --tm-emerald: #10b981;
+  --tm-slate: #0f172a;
+}
+
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: var(--tm-slate);
+  --md-accent-fg-color: #059669;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #020617;
+  --md-accent-fg-color: #34d399;
+}
+
+.md-typeset h1 {
+  font-weight: 750;
+  letter-spacing: -0.025em;
+}
+
+.md-typeset h2 {
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.md-typeset figure {
+  margin: 1.5rem auto 2rem;
+}
+
+.md-typeset figure img {
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--md-default-fg-color) 18%, transparent);
+  border-radius: 0.75rem;
+  background: var(--md-code-bg-color);
+}
+
+.md-typeset figcaption {
+  max-width: 48rem;
+  margin-top: 0.65rem;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.md-typeset table:not([class]) {
+  border-radius: 0.5rem;
+}
+
+.md-typeset .grid.cards > ul > li {
+  border-radius: 0.75rem;
+}

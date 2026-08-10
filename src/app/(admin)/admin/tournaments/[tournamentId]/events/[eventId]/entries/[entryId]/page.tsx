@@ -1,0 +1,136 @@
+import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
+import { AdminBreadcrumbs } from "@/components/shared/admin-breadcrumbs";
+import {
+  ClubService,
+  EntryService,
+  EventService,
+  PlayerService,
+  TournamentService,
+} from "@/application/services";
+import { getDb } from "@/db/client";
+import { updateEntryAction } from "@/features/entries/actions";
+import { EntryRegistrationForm } from "@/features/entries/components/entry-registration-form";
+import { requireAuthOrRedirect } from "@/lib/auth/require-auth";
+import { pageTitle } from "@/lib/page-title";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{
+    tournamentId: string;
+    eventId: string;
+    entryId: string;
+  }>;
+}) {
+  const { tournamentId, eventId, entryId } = await params;
+  const t = await getTranslations("entries");
+  const db = getDb();
+  try {
+    await new TournamentService(db).getById(tournamentId);
+    const event = await new EventService(db).getById(eventId);
+    await new EntryService(db).getById(entryId);
+    const sectionTitle =
+      event.type === "DOUBLES" ? t("editPair") : t("editEntry");
+    return pageTitle(sectionTitle, event.name);
+  } catch {
+    return pageTitle(t("title"));
+  }
+}
+
+export const dynamic = "force-dynamic";
+
+export default async function EditEntryPage({
+  params,
+}: {
+  params: Promise<{
+    tournamentId: string;
+    eventId: string;
+    entryId: string;
+  }>;
+}) {
+  const user = await requireAuthOrRedirect();
+  const actor = { userId: user.id, role: user.role };
+  const { tournamentId, eventId, entryId } = await params;
+  const db = getDb();
+  const t = await getTranslations("entries");
+  const tc = await getTranslations("common");
+
+  let event;
+  let entry;
+  try {
+    await new TournamentService(db).getById(tournamentId);
+    event = await new EventService(db).getById(eventId);
+    entry = await new EntryService(db).getById(entryId);
+  } catch {
+    notFound();
+  }
+
+  const [players, clubs, registeredPlayerIds] = await Promise.all([
+    new PlayerService(db).listForTournament(actor, tournamentId),
+    new ClubService(db).listForTournament(actor, tournamentId),
+    new EntryService(db).listRegisteredPlayerIds(eventId, entryId),
+  ]);
+  const taken = new Set(registeredPlayerIds);
+  const availablePlayers = players.filter((p) => !taken.has(p.id));
+
+  const membersSorted = [...entry.members].sort(
+    (a, b) => a.position - b.position,
+  );
+  const canEdit =
+    entry.status === "ACTIVE" &&
+    (event.status === "SETUP" || event.status === "DRAW_READY");
+  const isDoubles = event.type === "DOUBLES";
+
+  return (
+    <div className="mx-auto max-w-xl space-y-6">
+      <div>
+        <AdminBreadcrumbs
+          tournament={{ id: tournamentId }}
+          event={{ id: eventId, name: event.name }}
+          items={[
+            {
+              href: `/admin/tournaments/${tournamentId}/events/${eventId}/entries`,
+              label: isDoubles ? t("pairsTitle") : t("title"),
+            },
+          ]}
+          current={isDoubles ? t("editPair") : t("editEntry")}
+        />
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+          {isDoubles ? t("editPair") : t("editEntry")}
+        </h2>
+        <p className="mt-1 text-sm text-slate-600">{entry.status}</p>
+      </div>
+
+      {canEdit ? (
+        <EntryRegistrationForm
+          eventType={event.type}
+          players={availablePlayers.map((p) => ({
+            id: p.id,
+            displayName: p.displayName,
+            clubName: p.sports[0]?.clubId
+              ? (clubs.find((c) => c.id === p.sports[0]?.clubId)?.name ?? null)
+              : null,
+          }))}
+          clubs={clubs.map((c) => ({ id: c.id, name: c.name }))}
+          action={updateEntryAction.bind(
+            null,
+            tournamentId,
+            eventId,
+            entryId,
+          )}
+          defaults={{
+            displayName: entry.displayName,
+            seed: entry.seed,
+            ranking: entry.ranking,
+            clubId: entry.clubId,
+            memberPlayerIds: membersSorted.map((m) => m.playerId),
+          }}
+          submitLabel={isDoubles ? t("updatePair") : tc("save")}
+        />
+      ) : (
+        <p className="text-sm text-slate-600">{t("notEditable")}</p>
+      )}
+    </div>
+  );
+}
