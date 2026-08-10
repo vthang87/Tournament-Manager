@@ -27,6 +27,7 @@ import {
   tournamentStatusKey,
 } from "@/i18n/status-labels";
 import { pageTitle } from "@/lib/page-title";
+import { TournamentJsonExportButton } from "@/features/import-export/tournament-json-tools";
 
 export async function generateMetadata({
   params,
@@ -107,6 +108,9 @@ export default async function TournamentDetailPage({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {canSetup ? (
+            <TournamentJsonExportButton tournamentId={tournamentId} />
+          ) : null}
           {canSetup ? (
             <Link
               href={`/admin/tournaments/${tournamentId}/edit`}

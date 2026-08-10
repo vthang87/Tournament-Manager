@@ -1024,6 +1024,14 @@
     "results": "Kết quả",
     "standings": "Xếp hạng"
   },
+  "tournamentJson": {
+    "export": "Xuất JSON",
+    "exporting": "Đang xuất…",
+    "import": "Nhập JSON",
+    "importing": "Đang nhập…",
+    "confirmImport": "Nhập toàn bộ dữ liệu từ {name} thành một giải mới?",
+    "importSuccess": "Đã nhập giải {name}."
+  },
   "live": {
     "liveBoard": "Bảng trực tiếp",
     "courtDashboard": "Bảng điều khiển sân",

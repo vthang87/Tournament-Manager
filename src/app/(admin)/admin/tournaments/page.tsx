@@ -13,6 +13,8 @@ import { getDb } from "@/db/client";
 import { getCurrentUser } from "@/lib/auth/require-auth";
 import { tournamentStatusKey } from "@/i18n/status-labels";
 import { pageTitle } from "@/lib/page-title";
+import { canPerform } from "@/lib/auth/policies";
+import { TournamentJsonImportButton } from "@/features/import-export/tournament-json-tools";
 
 export async function generateMetadata() {
   const t = await getTranslations("tournaments");
@@ -35,7 +37,7 @@ export default async function TournamentsPage() {
   });
   const sports = await new SportService(getDb()).listActive();
   const sportName = new Map(sports.map((sport) => [sport.id, sport.name]));
-  const canSetup = true;
+  const canSetup = canPerform(user.role, "setup");
 
   return (
     <div className="space-y-6">
@@ -48,12 +50,15 @@ export default async function TournamentsPage() {
           <p className="mt-1 text-sm text-slate-600">{t("listDescription")}</p>
         </div>
         {canSetup ? (
-          <Link
-            href="/admin/tournaments/new"
-            className="inline-flex h-10 items-center rounded-md bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800"
-          >
-            {t("new")}
-          </Link>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <TournamentJsonImportButton />
+            <Link
+              href="/admin/tournaments/new"
+              className="inline-flex h-10 items-center rounded-md bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800"
+            >
+              {t("new")}
+            </Link>
+          </div>
         ) : null}
       </div>
 

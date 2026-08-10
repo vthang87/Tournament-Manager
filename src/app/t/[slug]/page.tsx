@@ -59,6 +59,12 @@ export default async function PublicTournamentPage({
   }
 
   const { tournament } = view;
+  const groupsByEvent = view.events
+    .map((event) => ({
+      event,
+      groups: view.groups.filter((group) => group.eventId === event.id),
+    }))
+    .filter(({ groups }) => groups.length > 0);
   const sectionNav = [
     ["schedule", t("schedule")],
     ["results", t("results")],
@@ -170,22 +176,40 @@ export default async function PublicTournamentPage({
           {view.groups.length === 0 ? (
             <p className="mt-3 text-sm text-slate-600">{t("groupsNotDrawn")}</p>
           ) : (
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              {view.groups.map((group) => (
-                <div
-                  key={group.id}
-                  className="rounded-lg border border-slate-200 bg-white p-4"
+            <div className="mt-5 space-y-8">
+              {groupsByEvent.map(({ event, groups }) => (
+                <section
+                  key={event.id}
+                  aria-labelledby={`groups-event-${event.id}`}
                 >
-                  <h3 className="font-medium">
-                    {group.name}{" "}
-                    <span className="text-slate-500">({group.code})</span>
-                  </h3>
-                  <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">
-                    {group.entries.map((e) => (
-                      <li key={e.entryId}>{e.displayName}</li>
+                  <div className="mb-3 flex items-center gap-3">
+                    <h3
+                      id={`groups-event-${event.id}`}
+                      className="text-lg font-semibold text-slate-900"
+                    >
+                      {event.name}
+                    </h3>
+                    <span className="h-px flex-1 bg-slate-200" />
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {groups.map((group) => (
+                      <div
+                        key={group.id}
+                        className="rounded-lg border border-slate-200 bg-white p-4"
+                      >
+                        <h4 className="font-medium">
+                          {group.name}{" "}
+                          <span className="text-slate-500">({group.code})</span>
+                        </h4>
+                        <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">
+                          {group.entries.map((entry) => (
+                            <li key={entry.entryId}>{entry.displayName}</li>
+                          ))}
+                        </ol>
+                      </div>
                     ))}
-                  </ol>
-                </div>
+                  </div>
+                </section>
               ))}
             </div>
           )}
