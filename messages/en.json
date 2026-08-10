@@ -1026,6 +1026,14 @@
     "results": "Results",
     "standings": "Standings"
   },
+  "tournamentJson": {
+    "export": "Export JSON",
+    "exporting": "Exporting…",
+    "import": "Import JSON",
+    "importing": "Importing…",
+    "confirmImport": "Import all data from {name} as a new tournament?",
+    "importSuccess": "Imported {name}."
+  },
   "live": {
     "liveBoard": "Live board",
     "courtDashboard": "Court dashboard",

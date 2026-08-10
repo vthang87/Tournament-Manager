@@ -40,6 +40,8 @@ export type PublicGroupDto = {
   id: string;
   name: string;
   code: string;
+  eventId: string;
+  eventName: string;
   stageId: string;
   stageName: string;
   entries: Array<{

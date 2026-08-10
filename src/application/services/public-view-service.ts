@@ -173,6 +173,8 @@ export class PublicViewService {
               id: group.id,
               name: group.name,
               code: group.code,
+              eventId: event.id,
+              eventName: event.name,
               stageId: stage.id,
               stageName: stage.name,
               entries: groupEntries.map((ge) => ({

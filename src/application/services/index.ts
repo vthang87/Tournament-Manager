@@ -22,6 +22,7 @@ export { DashboardService } from "./dashboard-service";
 export { PublicViewService } from "./public-view-service";
 export { ExcelImportService } from "./excel-import-service";
 export { ExcelExportService } from "./excel-export-service";
+export { TournamentJsonService } from "./tournament-json-service";
 
 import type { AppDatabase } from "@/db/client";
 import { BracketService } from "./bracket-service";
